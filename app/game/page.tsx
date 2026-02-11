@@ -22,6 +22,7 @@ type Question = {
   id: string;
   text: string;
   imageUrl: string;
+  audioUrls?: { [key: string]: string };
   imageMeta?: {
     orientation?: 'landscape' | 'portrait';
     photographer?: string;
@@ -105,7 +106,7 @@ export default function GamePage() {
     setIsLoading(true);
     try {
       const { questions } = await getQuestions(quiz.id);
-      setQuestions(questions);
+      setQuestions(questions as any);
       setView('LEVELS');
     } catch (e) {
       console.error(e);
@@ -139,9 +140,9 @@ export default function GamePage() {
   };
 
   const loadQuestion = (q: Question) => {
-    // Shuffle answers
+    // Do not shuffle answers so they match the generated audio
     const answers = q.answers.map((a, i) => ({ ...a, originalIdx: i }));
-    setShuffledAnswers(answers.sort(() => Math.random() - 0.5));
+    setShuffledAnswers(answers);
     setAnswerState({ selectedIdx: null, isCorrect: false, locked: false });
   };
 
@@ -223,7 +224,6 @@ export default function GamePage() {
                       {quiz.imageUrl ? <img src={quiz.imageUrl} alt={quiz.title} /> : <div className="no-img">📝</div>}
                     </div>
                     <div className="card-label">{quiz.title}</div>
-                    <div className="card-meta">{quiz.questionCount} Questions</div>
                   </div>
                 ))}
                 {quizzes.length === 0 && <div className="empty-msg">No quizzes found.</div>}
@@ -256,6 +256,15 @@ export default function GamePage() {
         {/* --- VIEW: GAME --- */}
         {view === 'GAME' && currentQ && (
           <>
+            {/* Audio Player - Auto plays when question loads. TODO: Use selected language */}
+            {currentQ.audioUrls?.en && (
+              <audio 
+                key={currentQ.id} 
+                src={currentQ.audioUrls.en} 
+                autoPlay 
+                style={{ display: 'none' }} 
+              />
+            )}
             <section id="content" className={isLandscape ? 'landscape' : 'portrait'}>
               {/* Image */}
               <div id="image-card">

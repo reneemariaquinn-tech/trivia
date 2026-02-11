@@ -5,6 +5,7 @@ import { ai } from '@/lib/genkit';
 import { db, storage } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, collection } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { processTriviaAudio } from './game/triviaAudioGenerator';
 
 export async function generateQuestionAudio(questionId: string, language: string) {
   try {
@@ -46,6 +47,46 @@ export async function generateQuestionAudio(questionId: string, language: string
     return { success: true, audioUrl, text: result.translatedText };
   } catch (error) {
     console.error('Action Error:', error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+export async function generateQuestionAudioWithTTS(questionId: string, language: string) {
+  try {
+    // 1. Fetch question data
+    const docRef = doc(db, 'questions', questionId);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new Error('Question document not found');
+    }
+    const questionData = docSnap.data();
+
+    if (!questionData.text || !Array.isArray(questionData.answers)) {
+      throw new Error('Invalid question data format.');
+    }
+
+    const triviaInput = {
+      question: questionData.text,
+      answers: questionData.answers.map((ans: { text: string }) => ans.text)
+    };
+
+    // 2. Generate Audio using the custom TTS generator
+    const result = await processTriviaAudio(triviaInput, language);
+
+    if (!result || !result.audioUrl) {
+      throw new Error('Failed to generate audio or get URL');
+    }
+
+    // 3. Update the question document
+    await updateDoc(docRef, {
+      [`audioUrls.${language}`]: result.audioUrl,
+      [`translations.${language}`]: result.translatedText,
+    });
+
+    return { success: true, audioUrl: result.audioUrl };
+  } catch (error) {
+    console.error('Error in generateQuestionAudioWithTTS:', error);
     return { success: false, error: (error as Error).message };
   }
 }

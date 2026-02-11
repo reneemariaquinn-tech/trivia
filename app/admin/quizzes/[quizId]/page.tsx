@@ -10,6 +10,7 @@ import {
   autoAssignImage 
 } from '../../topics/actions';
 import ModalConfirm from '@/components/ModalConfirm';
+import { generateQuestionAudioWithTTS } from '../../../actions';
 
 export default function QuestionsPage({ params }: { params: Promise<{ quizId: string }> }) {
   const { quizId } = useReact(params);
@@ -17,6 +18,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   const [quizTitle, setQuizTitle] = useState('Loading...');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   
   const [deleteConfig, setDeleteConfig] = useState<{ isOpen: boolean; ids: string[] }>({ isOpen: false, ids: [] });
@@ -174,6 +176,34 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     }
   };
 
+  const handleGenerateAudio = async () => {
+    if (!editingQuestion?.id) return alert("Please save the question first.");
+    
+    setIsGeneratingAudio(true);
+    try {
+      const result = await generateQuestionAudioWithTTS(editingQuestion.id, 'en');
+      
+      if (result.success && result.audioUrl) {
+        // Update local state for immediate feedback
+        const updatedAudioUrls = { ...(editingQuestion.audioUrls || {}), en: result.audioUrl };
+        
+        setEditingQuestion((prev: any) => ({ ...prev, audioUrls: updatedAudioUrls, audioUrl: result.audioUrl }));
+        setQuestions(prev => prev.map(q => q.id === editingQuestion.id ? { 
+          ...q, 
+          audioUrls: updatedAudioUrls,
+          audioUrl: result.audioUrl 
+        } : q));
+      } else {
+        alert("Failed to generate audio: " + (result.error || "Unknown error"));
+      }
+    } catch (e) {
+      console.error(e);
+      alert("An error occurred while generating audio.");
+    } finally {
+      setIsGeneratingAudio(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -304,9 +334,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                   )}
                 </td>
                 <td className="p-5 text-center">
-                  <span className={`text-lg ${q.audioUrl ? 'text-indigo-600' : 'text-slate-200'}`}>
-                    🔊
-                  </span> 
+                  {(q.audioUrl || (q.audioUrls && Object.keys(q.audioUrls).length > 0)) && (
+                    <span className="text-lg text-indigo-600">🔊</span>
+                  )}
                 </td>
                 <td className="p-5 font-medium max-w-xs truncate">{q.text}</td>
                 <td className="p-5 text-sm text-slate-500 max-w-xs truncate">{q.answers?.find((a: any) => a.isCorrect)?.text || '-'}</td>
@@ -416,6 +446,28 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Question Text</label>
               <textarea name="text" defaultValue={editingQuestion?.text} required className="w-full p-3 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none" rows={3} />
+            </div>
+
+            {/* Audio Section */}
+            <div>
+              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Audio (English)</label>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+                {(editingQuestion?.audioUrls?.en || editingQuestion?.audioUrl) ? (
+                  <audio controls src={editingQuestion.audioUrls?.en || editingQuestion.audioUrl} className="h-10 w-full" />
+                ) : (
+                  <span className="text-xs text-slate-400 italic w-full text-center sm:text-left">No audio generated</span>
+                )}
+                
+                <button
+                  type="button"
+                  onClick={handleGenerateAudio}
+                  disabled={isGeneratingAudio || !editingQuestion?.id}
+                  className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-200 transition-colors disabled:opacity-50 whitespace-nowrap w-full sm:w-auto"
+                >
+                  {isGeneratingAudio ? 'Generating...' : ((editingQuestion?.audioUrls?.en || editingQuestion?.audioUrl) ? 'Regenerate' : 'Generate Audio')}
+                </button>
+              </div>
+              {!editingQuestion?.id && <p className="text-[10px] text-slate-400 mt-1 text-right">Save question to generate audio</p>}
             </div>
 
             <div>
