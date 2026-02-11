@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1280, initial-scale=1.0" />
+  <title>Trivia Time</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+
+  <style>
+    /* ─── Reset ─── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --black:  #000000;
+      --white:  #ffffff;
+      --teal:   #66e0e0;
+      --grey:   #1e1e1e;   /* answer button surface */
+      --grey2:  #2c2c2c;   /* answer hover */
+      --dim:    rgba(255,255,255,0.35);
+    }
+
+    html, body {
+      width: 1280px;
+      height: 720px;
+      overflow: hidden;
+      background: var(--black);
+      font-family: 'Poppins', sans-serif;
+      font-weight: 600;
+      color: var(--white);
+    }
+
+    /* ═══════════════════════════════════════
+       SHELL  ─  96px top + 1fr content + 52px bottom
+    ═══════════════════════════════════════ */
+    #shell {
+      width: 1280px;
+      height: 720px;
+      display: grid;
+      grid-template-rows: 96px 1fr 52px;
+    }
+
+    /* ── Top nav: black, empty ── */
+    #topnav {
+      background: var(--black);
+      /* intentionally empty */
+    }
+
+    /* ─────────────────────────────────────
+       CONTENT AREA
+    ───────────────────────────────────── */
+    #content {
+      padding: 14px 20px;
+      display: grid;
+      gap: 16px;
+      background: var(--black);
+      min-height: 0;
+    }
+
+    /*
+      LANDSCAPE  ─  image left (58%), panel right (42%)
+      grid-area names stay consistent: "img" and "panel"
+    */
+    #content.landscape {
+      grid-template-columns: 58fr 42fr;
+      grid-template-rows: 1fr;
+      grid-template-areas: "img panel";
+    }
+
+    /*
+      PORTRAIT  ─  image LEFT (38%), panel right (62%)
+      Portrait image is narrower so it goes left,
+      with the taller question+answers filling the wider right column.
+    */
+    #content.portrait {
+      grid-template-columns: 38fr 62fr;
+      grid-template-rows: 1fr;
+      grid-template-areas: "img panel";
+    }
+
+    /* ─────────────────────────────────────
+       IMAGE CARD
+    ───────────────────────────────────── */
+    #image-card {
+      grid-area: img;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      border-radius: 14px;
+      overflow: hidden;
+      position: relative;
+      background: #0a0a0a;
+    }
+
+    #trivia-img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center;
+      transition: opacity .4s ease;
+    }
+
+    /* ─────────────────────────────────────
+       PANEL  (question + answers)
+    ───────────────────────────────────── */
+    #panel {
+      grid-area: panel;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      min-width: 0;
+      min-height: 0;
+      height: 100%;
+    }
+
+    /* Question */
+    #q-block {
+      flex-shrink: 0;
+      padding-bottom: 4px;
+    }
+
+    #q-text {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--white);
+      line-height: 1.35;
+    }
+
+
+
+    /* ─────────────────────────────────────
+       ANSWERS
+    ───────────────────────────────────── */
+    #answers {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .ans {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border: none;
+      border-radius: 12px;
+      padding: 0 18px;
+      cursor: pointer;
+      text-align: left;
+      position: relative;
+      overflow: hidden;
+      flex: 1;
+      min-height: 0;
+      background: var(--grey);
+      /* subtle bottom edge for depth */
+      box-shadow: 0 4px 0 rgba(0,0,0,0.6);
+      transition: transform .1s ease, background .12s ease, box-shadow .1s ease;
+    }
+
+    /* shine sweep */
+    .ans::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(
+        108deg,
+        transparent 38%,
+        rgba(255,255,255,.05) 50%,
+        transparent 62%
+      );
+      transform: translateX(-120%);
+      transition: transform .45s ease;
+      pointer-events: none;
+    }
+    .ans:hover::after { transform: translateX(120%); }
+
+    .ans:hover {
+      background: var(--grey2);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 0 rgba(0,0,0,0.6);
+    }
+    .ans:active {
+      transform: translateY(2px);
+      box-shadow: 0 1px 0 rgba(0,0,0,0.6);
+    }
+
+    /* Letter badge */
+    .badge {
+      flex-shrink: 0;
+      width: 54px;
+      height: 54px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.06);
+      border: 2px solid rgba(255,255,255,0.14);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: rgba(255,255,255,0.5);
+      font-family: 'Poppins', sans-serif;
+    }
+
+    .ans-label {
+      font-size: 2rem;
+      font-weight: 600;
+      color: var(--white);
+      line-height: 1.25;
+    }
+
+    /* ── CORRECT  ──  teal brand colour */
+    .ans.correct {
+      background: var(--teal) !important;
+      box-shadow: 0 4px 0 rgba(0,0,0,0.5) !important;
+      animation: pop .3s ease;
+    }
+    .ans.correct .badge {
+      background: rgba(0,0,0,0.18);
+      border-color: rgba(0,0,0,0.25);
+      color: var(--black);
+    }
+    .ans.correct .ans-label {
+      color: var(--black);
+    }
+
+    /* ── WRONG  ──  fade out */
+    .ans.wrong {
+      background: rgba(255,255,255,0.04) !important;
+      box-shadow: 0 4px 0 rgba(0,0,0,0.3) !important;
+      opacity: .32;
+    }
+
+    .ans.locked { pointer-events: none; }
+
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      45%  { transform: scale(1.03); }
+      100% { transform: scale(1); }
+    }
+
+    /* ═══════════════════════════════════════
+       BOTTOM STATUS BAR
+    ═══════════════════════════════════════ */
+    #bottombar {
+      background: #0a0a0a;
+      border-top: 1px solid #1e1e1e;
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 22px;
+      height: 52px;
+    }
+
+    .bar-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: rgba(255,255,255,0.6);
+      white-space: nowrap;
+      font-family: 'Poppins', sans-serif;
+    }
+    .bar-item .material-icons-round {
+      font-size: 1.1rem;
+      color: var(--teal);
+    }
+    .bar-item.lit { color: var(--white); }
+
+    .bar-sep {
+      width: 1px;
+      height: 26px;
+      background: #2a2a2a;
+      flex-shrink: 0;
+    }
+
+    .bar-spacer { flex: 1; }
+
+    /* Progress bar */
+    .prog-track {
+      width: 150px; height: 5px;
+      background: #2a2a2a;
+      border-radius: 3px;
+      overflow: hidden;
+    }
+    .prog-fill {
+      height: 100%;
+      width: 40%;
+      background: var(--teal);
+      border-radius: 3px;
+      transition: width .6s ease;
+    }
+
+
+
+    /* ─── Demo/staff controls ─── */
+    #demo-bar {
+      position: fixed;
+      bottom: 60px; right: 14px;
+      display: flex; gap: 8px;
+      z-index: 999;
+    }
+    .demo-btn {
+      background: #1e1e1e;
+      color: var(--teal);
+      border: 1px solid #333;
+      border-radius: 999px;
+      padding: 5px 16px;
+      font-family: 'Poppins', sans-serif;
+      font-size: .8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .demo-btn:hover { background: #2a2a2a; }
+  </style>
+</head>
+<body>
+<div id="shell">
+
+  <!-- ── Empty black top nav ── -->
+  <nav id="topnav"></nav>
+
+  <!-- ── Content grid ── -->
+  <section id="content" class="landscape">
+
+    <!-- Image -->
+    <div id="image-card">
+      <img id="trivia-img"
+           src="https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Piazza_San_Marco_from_Campanile.jpg/1280px-Piazza_San_Marco_from_Campanile.jpg"
+           alt="Trivia image" />
+    </div>
+
+    <!-- Panel -->
+    <div id="panel">
+
+      <div id="q-block">
+        <p id="q-text">
+          Which famous piazza is located in the heart of Venice, Italy?
+        </p>
+      </div>
+
+      <div id="answers">
+
+        <button class="ans" onclick="pick(this, false)">
+          <div class="badge">A</div>
+          <div class="ans-label">Piazza del Popolo</div>
+        </button>
+
+        <button class="ans" onclick="pick(this, true)">
+          <div class="badge">B</div>
+          <div class="ans-label">Piazza San Marco</div>
+        </button>
+
+        <button class="ans" onclick="pick(this, false)">
+          <div class="badge">C</div>
+          <div class="ans-label">Piazza Navona</div>
+        </button>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Bottom status bar ── -->
+  <footer id="bottombar">
+
+    <div class="bar-item lit">
+      <span class="material-icons-round">quiz</span>
+      <span id="q-counter">4 / 10</span>
+    </div>
+
+    <div class="bar-sep"></div>
+
+    <div class="bar-item" style="gap:10px;">
+      <span style="font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:rgba(255,255,255,0.3); font-weight:600;">Progress</span>
+      <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+    </div>
+
+    <div class="bar-spacer"></div>
+
+    <div class="bar-item lit">
+      <span class="material-icons-round">star</span>
+      <span id="score-val">Score: 3</span>
+    </div>
+
+  </footer>
+</div>
+
+<!-- Staff demo controls -->
+<div id="demo-bar">
+  <button class="demo-btn" onclick="toggleLayout()">⇄ Layout</button>
+  <button class="demo-btn" onclick="resetQ()">↺ Reset</button>
+</div>
+
+<script>
+  /* ── Pick answer ── */
+  let score = 3;
+  function pick(btn, correct) {
+    clearInterval(iv);
+    document.querySelectorAll('.ans').forEach(b => b.classList.add('locked'));
+    if (correct) {
+      btn.classList.add('correct');
+      score++;
+      document.getElementById('score-val').textContent = 'Score: ' + score;
+    } else {
+      btn.classList.add('wrong');
+      document.querySelectorAll('.ans').forEach(b => {
+        if (b.getAttribute('onclick').includes('true')) b.classList.add('correct');
+      });
+    }
+  }
+
+  /* ── Layout toggle ── */
+  let isLandscape = true;
+  const LS_IMG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Piazza_San_Marco_from_Campanile.jpg/1280px-Piazza_San_Marco_from_Campanile.jpg';
+  const PT_IMG = 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Golde33443.jpg/400px-Golde33443.jpg';
+
+  function toggleLayout() {
+    isLandscape = !isLandscape;
+    document.getElementById('content').className = isLandscape ? 'landscape' : 'portrait';
+    document.getElementById('trivia-img').src = isLandscape ? LS_IMG : PT_IMG;
+  }
+
+  function resetQ() {
+    document.querySelectorAll('.ans').forEach(b =>
+      b.classList.remove('correct', 'wrong', 'locked'));
+  }
+</script>
+</body>
+</html>
