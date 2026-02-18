@@ -37,7 +37,7 @@ const ttsClient = new textToSpeech.TextToSpeechClient(getClientConfig());
 
 // Determine bucket name from Env Var or Credentials
 const projectId = credentials?.project_id;
-const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || 'trivia-34f8c.firebasestorage.app';
+const storageBucket = 'resparke-hub.firebasestorage.app';
 
 // Initialize Firebase Admin if not already initialized
 if (!admin.apps.length) {
@@ -158,7 +158,7 @@ export async function processTriviaAudio(
     // --- Step D: Firebase Upload ---
     console.log(`Uploading audio to bucket: ${storageBucket}`);
     const bucket = admin.storage().bucket(storageBucket);
-    const fileName = `question-tts/${Date.now()}-${randomUUID()}-${targetLang}.mp3`;
+    const fileName = `trivia/question-tts/${Date.now()}-${randomUUID()}-${targetLang}.mp3`;
     const file = bucket.file(fileName);
     const token = randomUUID();
 

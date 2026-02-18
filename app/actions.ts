@@ -33,7 +33,7 @@ export async function generateQuestionAudio(questionId: string, language: string
 
     // 3. Upload to Storage
     const audioBuffer = Buffer.from(result.audioBase64, 'base64');
-    const storageRef = ref(storage, `audio/${questionId}_${language}.mp3`);
+    const storageRef = ref(storage, `trivia/audio/${questionId}_${language}.mp3`);
     
     await uploadBytes(storageRef, audioBuffer, { contentType: 'audio/mp3' });
     const audioUrl = await getDownloadURL(storageRef);

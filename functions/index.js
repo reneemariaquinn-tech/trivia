@@ -9,11 +9,15 @@ const axios = require('axios');
 if (!admin.apps.length) {
   admin.initializeApp();
 }
-const db = admin.firestore();
 
+// 1. Point to the 'trivia' database
+const db = admin.firestore();
+db.settings({ databaseId: 'trivia' });
+
+// 2. Update these to the new 'resparke-hub' project links
 const FEEDBACK_ASSETS = {
-  correct: 'https://firebasestorage.googleapis.com/v0/b/trivia-34f8c.firebasestorage.app/o/assets%2Fright-answer.mp3?alt=media',
-  wrong: 'https://firebasestorage.googleapis.com/v0/b/trivia-34f8c.firebasestorage.app/o/assets%2Fwrong-answer.mp3?alt=media'
+  correct: 'https://firebasestorage.googleapis.com/v0/b/resparke-hub.firebasestorage.app/o/trivia%2Fassets%2Fright-answer.mp3?alt=media',
+  wrong: 'https://firebasestorage.googleapis.com/v0/b/resparke-hub.firebasestorage.app/o/trivia%2Fassets%2Fwrong-answer.mp3?alt=media'
 };
 
 exports.exportGameZip = functions.https.onRequest(async (req, res) => {

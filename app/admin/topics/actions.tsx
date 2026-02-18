@@ -70,7 +70,7 @@ export async function upsertCategory(id: string | null, formData: FormData) {
     const resizedBuffer = await sharp(buffer)
       .resize({ width: 1600, height: 1000, fit: 'inside' })
       .toBuffer();
-    const storageRef = ref(storage, `topic-covers/${Date.now()}-${imageFile.name}`);
+    const storageRef = ref(storage, `trivia/topic-covers/${Date.now()}-${imageFile.name}`);
     await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
   } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
@@ -89,7 +89,7 @@ export async function upsertCategory(id: string | null, formData: FormData) {
         let ext = contentType.split('/')[1] || 'jpg';
         if (ext === 'jpeg') ext = 'jpg';
         
-        const storageRef = ref(storage, `topic-covers/imported/${Date.now()}.${ext}`);
+        const storageRef = ref(storage, `trivia/topic-covers/imported/${Date.now()}.${ext}`);
         await uploadBytes(storageRef, resizedBuffer, { contentType });
         imageUrl = await getDownloadURL(storageRef);
       }
@@ -188,7 +188,7 @@ export async function upsertQuiz(id: string | null, topicId: string | null, form
     const resizedBuffer = await sharp(buffer)
       .resize({ width: 1600, height: 1000, fit: 'inside' })
       .toBuffer();
-    const storageRef = ref(storage, `quiz-covers/${Date.now()}-${imageFile.name}`);
+    const storageRef = ref(storage, `trivia/quiz-covers/${Date.now()}-${imageFile.name}`);
     await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
   } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
@@ -207,7 +207,7 @@ export async function upsertQuiz(id: string | null, topicId: string | null, form
         let ext = contentType.split('/')[1] || 'jpg';
         if (ext === 'jpeg') ext = 'jpg';
         
-        const storageRef = ref(storage, `quiz-covers/imported/${Date.now()}.${ext}`);
+        const storageRef = ref(storage, `trivia/quiz-covers/imported/${Date.now()}.${ext}`);
         await uploadBytes(storageRef, resizedBuffer, { contentType });
         imageUrl = await getDownloadURL(storageRef);
       }
@@ -363,7 +363,7 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
       .resize({ width: 1600, height: 1000, fit: 'inside' })
       .toBuffer();
 
-    const storageRef = ref(storage, `question-images/${Date.now()}-${imageFile.name}`);
+    const storageRef = ref(storage, `trivia/question-images/${Date.now()}-${imageFile.name}`);
     await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
     isNewUpload = true;
@@ -393,7 +393,7 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
         if (contentType.includes('webp')) ext = 'webp';
         
         const fileName = `imported/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
-        const storageRef = ref(storage, `question-images/${fileName}`);
+        const storageRef = ref(storage, `trivia/question-images/${fileName}`);
         
         await uploadBytes(storageRef, resizedBuffer, { contentType });
         imageUrl = await getDownloadURL(storageRef);
@@ -407,7 +407,7 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   // 3. Handle a new audio file upload, which overwrites any 'en' URL
   const audioFile = formData.get('audioFile') as File;
   if (audioFile && audioFile.size > 0) {
-    const storageRef = ref(storage, `question-audio/${Date.now()}-${audioFile.name}`);
+    const storageRef = ref(storage, `trivia/question-audio/${Date.now()}-${audioFile.name}`);
     await uploadBytes(storageRef, audioFile);
     const audioUrl = await getDownloadURL(storageRef);
     audioUrls.en = audioUrl;
@@ -526,7 +526,7 @@ export async function autoAssignImage(questionId: string, searchQuery: string) {
     .resize({ width: 1600, height: 1000, fit: 'inside' })
     .toBuffer();
 
-  const storagePath = `question-images/automated/${questionId}.jpg`;
+  const storagePath = `trivia/question-images/automated/${questionId}.jpg`;
   const storageRef = ref(storage, storagePath);
   await uploadBytes(storageRef, resizedBuffer, { contentType: 'image/jpeg' });
   const permanentUrl = await getDownloadURL(storageRef);
