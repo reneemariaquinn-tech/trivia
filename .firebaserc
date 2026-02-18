@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "trivia-34f8c"
-  }
+  },
+  "targets": {
+    "resparke-hub": {
+      "hosting": {
+        "trivia-site": [
+          "triviapro"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
