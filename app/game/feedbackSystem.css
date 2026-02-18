@@ -1,0 +1,86 @@
+/* --- Animation: Pulse & Glow --- */
+.animation-pulse {
+  animation: pulse-and-glow 0.7s ease-out;
+}
+
+@keyframes pulse-and-glow {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(102, 224, 224, 0.7);
+  }
+  50% {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px 10px rgba(102, 224, 224, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(102, 224, 224, 0);
+  }
+}
+
+/* --- Animation: Flip & Reveal --- */
+.animation-flip {
+  position: relative;
+  animation: flip-reveal-bg 0.8s ease-in-out;
+}
+
+.animation-flip::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 1.5em;
+  font-weight: bold;
+  opacity: 0;
+  animation: fade-in-checkmark 0.8s ease-in-out;
+}
+
+@keyframes flip-reveal-bg {
+  0% {
+    transform: perspective(600px) rotateY(0deg);
+    background-color: initial;
+  }
+  50% {
+    transform: perspective(600px) rotateY(180deg);
+    background-color: #66e0e0;
+    color: #66e0e0;
+  }
+  100% {
+    transform: perspective(600px) rotateY(360deg);
+    background-color: #66e0e0;
+    color: #66e0e0;
+  }
+}
+
+@keyframes fade-in-checkmark {
+  0%, 50% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* --- General class for instant feedback --- */
+.feedback-correct {
+    background-color: #66e0e0 !important;
+    color: black !important;
+    border-color: #66e0e0 !important;
+    transition: background-color 0.1s;
+}
+
+/* --- Animation: Shake for wrong answer --- */
+.animation-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}

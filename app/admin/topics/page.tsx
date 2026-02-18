@@ -82,7 +82,7 @@ export default function CategoriesPage() {
       <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-visible">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-indigo-600">
+            <tr className="bg-slate-800 text-white text-sm">
               <th className="p-5 text-white font-semibold text-sm first:rounded-tl-2xl">Image</th>
               <th className="p-5 text-white font-semibold text-sm">Category Name</th>
               <th className="p-5 text-white font-semibold text-sm">Description</th>

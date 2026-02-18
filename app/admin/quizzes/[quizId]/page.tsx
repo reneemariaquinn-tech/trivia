@@ -7,10 +7,11 @@ import {
   bulkDeleteQuestions, 
   bulkUpdateDifficulty,
   bulkUploadQuestions,
-  autoAssignImage 
+  autoAssignImage,
+  generateQuestionAudioWithTTS
 } from '../../topics/actions';
 import ModalConfirm from '@/components/ModalConfirm';
-import { generateQuestionAudioWithTTS } from '../../../actions';
+import { searchImages } from '../../../actions';
 
 export default function QuestionsPage({ params }: { params: Promise<{ quizId: string }> }) {
   const { quizId } = useReact(params);
@@ -27,7 +28,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [csvContent, setCsvContent] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
-  const [aiSearchModal, setAiSearchModal] = useState({ isOpen: false, query: '' });
+  const [aiSearchModal, setAiSearchModal] = useState<{
+    isOpen: boolean;
+    query: string;
+    results: any[];
+    provider: 'pexels' | 'wikimedia';
+    isSearching: boolean;
+  }>({ isOpen: false, query: '', results: [], provider: 'pexels', isSearching: false });
   const [manualOrientation, setManualOrientation] = useState<string>('landscape');
   
   const [filterLevel, setFilterLevel] = useState<string>('all');
@@ -138,30 +145,86 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     setIsSaving(false);
   };
 
-  const handleSingleAiSearch = () => {
-    if (!editingQuestion?.id) return alert("Please save the question first.");
-    
-    const correctAnswer = editingQuestion.answers?.find((a: any) => a.isCorrect)?.text || "";
-    const defaultQuery = `${editingQuestion.text || ""} ${correctAnswer}`.trim();
-    
-    setAiSearchModal({ isOpen: true, query: defaultQuery });
-  };
-
-  const performAiSearch = async () => {
-    if (!editingQuestion?.id || !aiSearchModal.query) return;
+  const handleBulkGenerateAudio = async () => {
+    if (selectedIds.length === 0) return alert("Select questions first");
     
     setIsSaving(true);
+    let success = 0;
+    let failed = 0;
+
+    for (const id of selectedIds) {
+      try {
+        const result = await generateQuestionAudioWithTTS(id, 'en');
+        
+        if (result.success && result.audioUrl) {
+          success++;
+          // Update local state to reflect the new audio immediately
+          setQuestions(prev => prev.map(q => q.id === id ? { 
+            ...q, 
+            audioUrls: { ...(q.audioUrls || {}), en: result.audioUrl },
+            audioUrl: result.audioUrl 
+          } : q));
+        } else {
+          failed++;
+        }
+      } catch (e) {
+        console.error(e);
+        failed++;
+      }
+    }
+
+    setIsSaving(false);
+    alert(`Audio Generation Complete.\nSuccess: ${success}\nFailed: ${failed}`);
+    setSelectedIds([]);
+  };
+
+  const handleSingleAiSearch = () => {
+    if (!editingQuestion?.id) return alert("Please save the question first to enable AI search.");
+    
+    const correctAnswer = editingQuestion.answers?.find((a: any) => a.isCorrect)?.text || "";
+    // Query: Correct Answer + Question Text
+    const defaultQuery = `${correctAnswer} ${editingQuestion.text || ""}`.trim();
+    
+    // Open modal and trigger initial search
+    setAiSearchModal({ 
+      isOpen: true, 
+      query: defaultQuery, 
+      results: [], 
+      provider: 'pexels', 
+      isSearching: true 
+    });
+    
+    performImageSearch(defaultQuery, 'pexels');
+  };
+
+  const performImageSearch = async (query: string, provider: 'pexels' | 'wikimedia') => {
+    setAiSearchModal(prev => ({ ...prev, isSearching: true, query, provider }));
     try {
-      const result = await autoAssignImage(editingQuestion.id, aiSearchModal.query);
-      setEditingQuestion((prev: any) => ({ ...prev, ...result }));
-      setQuestions(prev => prev.map(q => q.id === editingQuestion.id ? { ...q, ...result } : q));
-      setAiSearchModal({ isOpen: false, query: '' });
+      const results = await searchImages(query, provider);
+      setAiSearchModal(prev => ({ ...prev, results, isSearching: false }));
     } catch (err) {
       console.error(err);
-      alert("Failed to find image.");
-    } finally {
-      setIsSaving(false);
+      setAiSearchModal(prev => ({ ...prev, isSearching: false }));
     }
+  };
+
+  const selectImage = (img: any) => {
+    const newMeta = {
+      photographer: img.photographer || null,
+      source: img.provider || img.source,
+    };
+
+    // Calculate and set orientation for the form submission
+    const orientation = (img.width && img.height && img.width >= img.height) ? 'landscape' : 'portrait';
+    setManualOrientation(orientation);
+    
+    setEditingQuestion((prev: any) => ({ 
+      ...prev, 
+      imageUrl: img.url,
+      imageMeta: { ...(prev.imageMeta || {}), ...newMeta, orientation }
+    }));
+    
+    setAiSearchModal(prev => ({ ...prev, isOpen: false }));
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -214,6 +277,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
 
   return (
     <div className="p-10 max-w-7xl mx-auto bg-slate-50 min-h-screen pb-32">
+        <a href="/admin/topics" className="text-indigo-600 hover:text-indigo-800 text-xs font-bold uppercase tracking-widest flex items-center gap-1 transition-colors">
+          ← Back
+        </a>
       <div className="flex justify-between items-end mb-8">
         <div>
           <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">{quizTitle}</h1>
@@ -292,6 +358,14 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
             >
                <span>✨</span> Find Images
+            </button>
+
+            <button 
+              onClick={handleBulkGenerateAudio}
+              disabled={isSaving}
+              className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+            >
+               <span>🔊</span> Generate Audio
             </button>
 
             <button 
@@ -374,18 +448,33 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
       {/* DRAWER */}
       {isDrawerOpen && (
         <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-xl bg-white p-10 shadow-2xl overflow-y-auto">
-          <h2 className="text-2xl font-bold mb-6">{editingQuestion ? 'Edit' : 'Add'} Question</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">{editingQuestion ? 'Edit' : 'Add'} Question</h2>
+            <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
           <form onSubmit={async (e) => {
             e.preventDefault();
             setIsSaving(true);
-            await upsertQuestion(editingQuestion?.id || null, quizId, new FormData(e.currentTarget));
-            setIsDrawerOpen(false);
-            loadData();
+            const formData = new FormData(e.currentTarget);
+            const result = await upsertQuestion(editingQuestion?.id || null, quizId, formData);
+            
+            // Update local state if result is returned (useful for new questions to get ID)
+            if (result && typeof result === 'object' && (result as any).id) {
+              setEditingQuestion((prev: any) => ({ ...prev, ...(result as any) }));
+            }
+
+            await loadData();
             setIsSaving(false);
           }} className="space-y-6 pb-20">
             
             <input type="hidden" name="existingImageUrl" value={editingQuestion?.imageUrl || ''} readOnly />
             <input type="hidden" name="orientation" value={manualOrientation} />
+            <input type="hidden" name="imagePhotographer" value={editingQuestion?.imageMeta?.photographer || ''} />
+            <input type="hidden" name="imageSource" value={editingQuestion?.imageMeta?.source || ''} />
 
             <div>
               <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Question Image</label>
@@ -427,18 +516,16 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                     <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'portrait'} onChange={() => setManualOrientation('portrait')} /> Portrait</label>
                   </div>
 
-                  {editingQuestion?.id && (
-                    <>
-                      <div className="text-center text-xs text-slate-400 font-bold uppercase">OR</div>
-                      <button 
-                        type="button"
-                        onClick={handleSingleAiSearch}
-                        className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
-                      >
-                        <span>✨</span> Find Image with AI
-                      </button>
-                    </>
-                  )}
+                  <>
+                    <div className="text-center text-xs text-slate-400 font-bold uppercase">OR</div>
+                    <button 
+                      type="button"
+                      onClick={handleSingleAiSearch}
+                      className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      <span>✨</span> Find Image with AI
+                    </button>
+                  </>
                 </div>
               )}
             </div>
@@ -500,7 +587,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg">
               {isSaving ? 'Saving...' : 'Save Question'}
             </button>
-            <button type="button" onClick={() => setIsDrawerOpen(false)} className="w-full text-slate-400 font-bold py-2">Cancel</button>
+            <button type="button" onClick={() => setIsDrawerOpen(false)} className="w-full text-slate-400 font-bold py-2">Close</button>
             
             {editingQuestion && (
               <button 
@@ -556,30 +643,63 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
       {/* AI SEARCH MODAL */}
       {aiSearchModal.isOpen && (
         <>
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[150]" onClick={() => setAiSearchModal({ ...aiSearchModal, isOpen: false })} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl z-[160] p-8 animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold text-slate-800 mb-4">Find Image with AI</h3>
-            <p className="text-xs text-slate-500 mb-4">Refine your search query to get the best results from Pexels.</p>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[150]" onClick={() => setAiSearchModal(prev => ({ ...prev, isOpen: false }))} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-white rounded-2xl shadow-2xl z-[160] p-8 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-slate-800 mb-4">Find Image</h3>
             
-            <input 
-              value={aiSearchModal.query}
-              onChange={(e) => setAiSearchModal({ ...aiSearchModal, query: e.target.value })}
-              className="w-full bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 mb-6"
-              placeholder="e.g. Eiffel Tower Paris"
-              autoFocus
-            />
-
-            <div className="flex gap-3">
+            <div className="flex gap-4 mb-4">
+              <input 
+                value={aiSearchModal.query}
+                onChange={(e) => setAiSearchModal({ ...aiSearchModal, query: e.target.value })}
+                className="flex-1 bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                placeholder="Search query..."
+                autoFocus
+                onKeyDown={(e) => e.key === 'Enter' && performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
+              />
               <button 
-                onClick={performAiSearch}
-                disabled={isSaving}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
+                onClick={() => performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
+                className="bg-indigo-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-indigo-700"
               >
-                {isSaving ? 'Searching...' : 'Search & Assign'}
+                Search
+              </button>
+            </div>
+
+            <div className="flex gap-2 mb-6 border-b border-slate-100 pb-2">
+              <button 
+                onClick={() => performImageSearch(aiSearchModal.query, 'pexels')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'pexels' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Pexels
               </button>
               <button 
-                onClick={() => setAiSearchModal({ ...aiSearchModal, isOpen: false })}
-                className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                onClick={() => performImageSearch(aiSearchModal.query, 'wikimedia')}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'wikimedia' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+              >
+                Wikicommons
+              </button>
+            </div>
+
+            {aiSearchModal.isSearching ? (
+              <div className="py-10 text-center text-slate-400">Searching...</div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4">
+                {aiSearchModal.results.map((img, idx) => (
+                  <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-xl overflow-hidden cursor-pointer hover:ring-4 ring-indigo-500 transition-all">
+                    <img src={img.url} className="w-full h-full object-cover" alt="Result" />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-2 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                      {img.photographer}
+                    </div>
+                  </div>
+                ))}
+                {aiSearchModal.results.length === 0 && <div className="col-span-3 text-center py-10 text-slate-400">No images found.</div>}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end">
+              <button 
+                onClick={() => setAiSearchModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-6 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
               >
                 Cancel
               </button>

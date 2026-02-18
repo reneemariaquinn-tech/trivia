@@ -90,3 +90,69 @@ export async function generateQuestionAudioWithTTS(questionId: string, language:
     return { success: false, error: (error as Error).message };
   }
 }
+
+export async function searchImages(query: string, provider: 'pexels' | 'wikimedia') {
+  try {
+    if (provider === 'pexels') {
+      if (!process.env.PEXELS_API_KEY) {
+        console.warn('Pexels API Key missing');
+        return [];
+      }
+      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=6`, {
+        headers: { Authorization: process.env.PEXELS_API_KEY }
+      });
+      const data = await res.json();
+      if (!data.photos) return [];
+      
+      return data.photos.map((p: any) => ({
+        url: p.src.large2x || p.src.large,
+        photographer: p.photographer,
+        source: 'Pexels'
+      }));
+    } 
+    
+    if (provider === 'wikimedia') {
+      const params = new URLSearchParams({
+        action: 'query',
+        format: 'json',
+        generator: 'search',
+        gsrnamespace: '6', // File namespace
+        gsrlimit: '6',
+        gsrsearch: query,
+        prop: 'imageinfo',
+        iiprop: 'url|extmetadata|user|size',
+        iiurlwidth: '1880',
+        origin: '*'
+      });
+      
+      const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params.toString()}`);
+      const data = await res.json();
+      if (!data.query || !data.query.pages) return [];
+      
+      return Object.values(data.query.pages).map((p: any) => {
+        const info = p.imageinfo?.[0];
+        if (!info) return null;
+
+        let imageUrl = info.thumburl || info.url;
+
+        // Optimize for portrait: max 1000px wide
+        if (info.height && info.width && info.height > info.width) {
+          imageUrl = imageUrl.replace(/\/(\d+)px-/, (match: string, width: string) => {
+            return parseInt(width) > 1000 ? '/1000px-' : match;
+          });
+        }
+
+        return {
+          url: imageUrl,
+          photographer: info?.user || 'Wikimedia Commons',
+          source: 'Wikimedia Commons'
+        };
+      }).filter((img: any) => img && img.url);
+    }
+
+    return [];
+  } catch (e) {
+    console.error('Image search failed:', e);
+    return [];
+  }
+}

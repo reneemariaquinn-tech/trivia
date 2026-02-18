@@ -17,6 +17,8 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import sharp from 'sharp';
+import { processTriviaAudio } from '../../game/triviaAudioGenerator';
 
 /**
  * TIER 1: TOPICS (Categories)
@@ -64,8 +66,12 @@ export async function upsertCategory(id: string | null, formData: FormData) {
 
   // 2. Handle Image Upload (if you have covers for categories)
   if (imageFile && imageFile.size > 0) {
+    const buffer = Buffer.from(await imageFile.arrayBuffer());
+    const resizedBuffer = await sharp(buffer)
+      .resize({ width: 1600, height: 1000, fit: 'inside' })
+      .toBuffer();
     const storageRef = ref(storage, `topic-covers/${Date.now()}-${imageFile.name}`);
-    await uploadBytes(storageRef, imageFile);
+    await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
   }
 
@@ -155,8 +161,12 @@ export async function upsertQuiz(id: string | null, topicId: string, formData: F
 
   // 2. Handle Image Upload
   if (imageFile && imageFile.size > 0) {
+    const buffer = Buffer.from(await imageFile.arrayBuffer());
+    const resizedBuffer = await sharp(buffer)
+      .resize({ width: 1600, height: 1000, fit: 'inside' })
+      .toBuffer();
     const storageRef = ref(storage, `quiz-covers/${Date.now()}-${imageFile.name}`);
-    await uploadBytes(storageRef, imageFile);
+    await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
   }
 
@@ -256,16 +266,81 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   const difficulty = formData.get('difficulty') as string;
   const searchQuery = (formData.get('searchQuery') as string) || text.substring(0, 50);
   const orientation = formData.get('orientation') as string;
+  const photographer = formData.get('imagePhotographer') as string;
+  const imageSource = formData.get('imageSource') as string;
 
   const imageFile = formData.get('imageFile') as File;
   let imageUrl = formData.get('existingImageUrl') as string;
   let isNewUpload = false;
 
+  // --- AUDIO HANDLING ---
+  let audioUrls: any = {};
+
+  // 1. If updating, load existing audio URLs to preserve other languages
+  if (questionId) {
+    const existingDoc = await getDoc(doc(db, 'questions', questionId));
+    if (existingDoc.exists()) {
+      audioUrls = existingDoc.data().audioUrls || {};
+    }
+  }
+
+  // 2. Check for an audio URL from the client (could be existing or newly generated)
+  const existingAudioUrl = formData.get('existingAudioUrl');
+  if (typeof existingAudioUrl === 'string') {
+    // Best Practice: Validate URL to prevent accidental unlinking via "undefined" or empty strings
+    if (existingAudioUrl.trim().startsWith('http')) {
+      audioUrls.en = existingAudioUrl.trim();
+    }
+  }
+
   if (imageFile && imageFile.size > 0) {
+    const buffer = Buffer.from(await imageFile.arrayBuffer());
+    const resizedBuffer = await sharp(buffer)
+      .resize({ width: 1600, height: 1000, fit: 'inside' })
+      .toBuffer();
+
     const storageRef = ref(storage, `question-images/${Date.now()}-${imageFile.name}`);
-    await uploadBytes(storageRef, imageFile);
+    await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
     isNewUpload = true;
+  } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
+    // NEW: Import external images (Wikimedia/Pexels) to Firebase Storage
+    try {
+      const response = await fetch(imageUrl);
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+
+        const resizedBuffer = await sharp(buffer)
+          .resize({ width: 1600, height: 1000, fit: 'inside' })
+          .toBuffer();
+        
+        // Determine extension/type
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        let ext = 'jpg';
+        if (contentType.includes('png')) ext = 'png';
+        if (contentType.includes('gif')) ext = 'gif';
+        if (contentType.includes('webp')) ext = 'webp';
+        
+        const fileName = `imported/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+        const storageRef = ref(storage, `question-images/${fileName}`);
+        
+        await uploadBytes(storageRef, resizedBuffer, { contentType });
+        imageUrl = await getDownloadURL(storageRef);
+        isNewUpload = true;
+      }
+    } catch (error) {
+      console.error("Error importing external image:", error);
+    }
+  }
+
+  // 3. Handle a new audio file upload, which overwrites any 'en' URL
+  const audioFile = formData.get('audioFile') as File;
+  if (audioFile && audioFile.size > 0) {
+    const storageRef = ref(storage, `question-audio/${Date.now()}-${audioFile.name}`);
+    await uploadBytes(storageRef, audioFile);
+    const audioUrl = await getDownloadURL(storageRef);
+    audioUrls.en = audioUrl;
   }
 
   const questionData: any = {
@@ -273,6 +348,7 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
     difficulty,
     searchQuery,
     imageUrl: imageUrl || "",
+    audioUrls: Object.keys(audioUrls).length > 0 ? audioUrls : null,
     updatedAt: new Date(),
     answers: [
       { text: formData.get('opt0'), isCorrect: formData.get('correctIndex') === '0' },
@@ -286,9 +362,11 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   // 2. If image removed, clear all meta
   if (isNewUpload) {
     questionData.imageMeta = {
-      orientation: orientation || 'landscape'
+      orientation: orientation || 'landscape',
+      photographer: photographer || null,
+      source: imageSource || null
     };
-    questionData.imageSource = 'manual';
+    questionData.imageSource = imageSource || 'manual';
     questionData.imageStatus = 'ready';
   } else if (!imageUrl) {
     questionData.imageMeta = null;
@@ -296,12 +374,21 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
     questionData.imageStatus = 'pending';
   }
 
+  let finalId = questionId;
+
   if (questionId) {
     await updateDoc(doc(db, 'questions', questionId), questionData);
   } else {
     questionData.quizIds = [quizId];
-    await addDoc(collection(db, 'questions'), questionData);
+    const docRef = await addDoc(collection(db, 'questions'), questionData);
+    finalId = docRef.id;
   }
+
+  return {
+    id: finalId,
+    ...questionData,
+    updatedAt: questionData.updatedAt.toISOString()
+  };
 }
 
 export async function bulkUploadQuestions(quizId: string, jsonData: string) {
@@ -365,10 +452,13 @@ export async function autoAssignImage(questionId: string, searchQuery: string) {
   const photo = data.photos[0];
   const imageRes = await fetch(photo.src.large2x);
   const buffer = Buffer.from(await imageRes.arrayBuffer());
+  const resizedBuffer = await sharp(buffer)
+    .resize({ width: 1600, height: 1000, fit: 'inside' })
+    .toBuffer();
 
   const storagePath = `question-images/automated/${questionId}.jpg`;
   const storageRef = ref(storage, storagePath);
-  await uploadBytes(storageRef, buffer, { contentType: 'image/jpeg' });
+  await uploadBytes(storageRef, resizedBuffer, { contentType: 'image/jpeg' });
   const permanentUrl = await getDownloadURL(storageRef);
 
   const now = new Date();
@@ -376,7 +466,7 @@ export async function autoAssignImage(questionId: string, searchQuery: string) {
   
   const imageMeta = {
       provider: 'pexels',
-      photographer: photo.photographer,
+      photographer: photo.photographer || null,
       width: photo.width,
       height: photo.height,
       aspectRatio: ratio,
@@ -421,4 +511,49 @@ export async function migrateQuestionMetadata() {
   });
   if (count > 0) await batch.commit();
   return count;
+}
+
+export async function generateQuestionAudioWithTTS(questionId: string, language: string) {
+  try {
+    const docRef = doc(db, 'questions', questionId);
+    const docSnap = await getDoc(docRef);
+    
+    if (!docSnap.exists()) {
+      throw new Error('Question document not found');
+    }
+    
+    const questionData = docSnap.data();
+    if (!questionData.text || !Array.isArray(questionData.answers)) {
+      throw new Error('Invalid question data format.');
+    }
+    
+    const triviaInput = {
+      question: questionData.text,
+      answers: questionData.answers.map((ans: any) => ans.text)
+    };
+
+    // Add a timeout to prevent infinite hanging
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Audio generation timed out after 30s")), 30000)
+    );
+
+    const result: any = await Promise.race([
+      processTriviaAudio(triviaInput, language),
+      timeoutPromise
+    ]);
+    
+    if (!result || !result.audioUrl) {
+      throw new Error('Failed to generate audio or get URL');
+    }
+    
+    await updateDoc(docRef, {
+      [`audioUrls.${language}`]: result.audioUrl,
+      [`translations.${language}`]: result.translatedText
+    });
+    
+    return { success: true, audioUrl: result.audioUrl };
+  } catch (error: any) {
+    console.error('Error in generateQuestionAudioWithTTS:', error);
+    return { success: false, error: error.message || "Unknown error" };
+  }
 }

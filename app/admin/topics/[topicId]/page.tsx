@@ -76,7 +76,7 @@ const filtered = quizzes.filter(q =>
       {/* Breadcrumbs */}
       <div className="mb-4">
         <Link href="/admin/topics" className="text-indigo-600 hover:text-indigo-800 text-xs font-bold uppercase tracking-widest flex items-center gap-1 transition-colors">
-          ← Back to Categories
+          ← Back
         </Link>
       </div>
 
@@ -106,7 +106,7 @@ const filtered = quizzes.filter(q =>
       <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-100 overflow-visible">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-indigo-600">
+            <tr className="bg-slate-800 text-white text-sm">
               <th className="p-5 text-white font-semibold text-sm first:rounded-tl-2xl w-24">Cover</th>
               <th className="p-5 text-white font-semibold text-sm">Quiz Title</th>
               <th className="p-5 text-white font-semibold text-sm">Description</th>

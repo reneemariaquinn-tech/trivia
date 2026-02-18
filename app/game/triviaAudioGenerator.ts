@@ -1,6 +1,7 @@
 import { v2 } from '@google-cloud/translate';
 import textToSpeech from '@google-cloud/text-to-speech';
 import * as admin from 'firebase-admin';
+import { randomUUID } from 'crypto';
 
 // Helper to load credentials from Env Var (Best Practice) or File (Local Fallback)
 const getCredentials = () => {
@@ -93,7 +94,7 @@ export async function processTriviaAudio(
     // --- Step B: SSML Construction ---
     // Format options: "A: [answer 0], B: [answer 1], ..."
     const optionsText = translatedAnswers
-      .map((ans, index) => `${String.fromCharCode(65 + index)}: ${ans}`)
+      .map((ans, index) => `<say-as interpret-as="characters">${String.fromCharCode(65 + index)}</say-as>: ${ans}`)
       .join('<break time="1000ms"/>');
 
     // Build SSML with 1.5s pause and repetition
@@ -157,27 +158,29 @@ export async function processTriviaAudio(
     // --- Step D: Firebase Upload ---
     console.log(`Uploading audio to bucket: ${storageBucket}`);
     const bucket = admin.storage().bucket(storageBucket);
-    const fileName = `question-tts/${Date.now()}-${targetLang}.mp3`;
+    const fileName = `question-tts/${Date.now()}-${randomUUID()}-${targetLang}.mp3`;
     const file = bucket.file(fileName);
+    const token = randomUUID();
 
     await file.save(Buffer.from(audioBuffer), {
       metadata: {
         contentType: 'audio/mpeg',
+        metadata: {
+          firebaseStorageDownloadTokens: token,
+        },
       },
     });
 
-    // Generate a signed URL (valid for 1 hour)
-    const [signedUrl] = await file.getSignedUrl({
-      action: 'read',
-      expires: Date.now() + 60 * 60 * 1000, // 1 hour
-    });
+    // Generate a persistent URL (mimicking Firebase Client SDK)
+    const bucketName = storageBucket.replace(/^gs:\/\//, '');
+    const persistentUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
 
     return {
       translatedText: {
         question: translatedQuestion,
         answers: translatedAnswers,
       },
-      audioUrl: signedUrl,
+      audioUrl: persistentUrl,
     };
 
   } catch (error) {

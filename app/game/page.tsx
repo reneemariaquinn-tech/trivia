@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getCategories, getQuizzes, getQuestions } from '../admin/topics/actions';
+import './feedbackSystem.css';
+import { triggerCorrectFeedback, triggerWrongFeedback, setSoundEnabled } from './feedbackSystem';
 
 // --- Types ---
 type Category = {
@@ -35,6 +37,8 @@ export default function GamePage() {
   // --- State ---
   const [view, setView] = useState<'CATEGORIES' | 'QUIZZES' | 'LEVELS' | 'GAME' | 'RESULT'>('CATEGORIES');
   const [isLoading, setIsLoading] = useState(true);
+  const [isAudioOn, setIsAudioOn] = useState(true);
+  const [gameMode, setGameMode] = useState<'casual' | 'auto' | 'stealth'>('casual');
   
   // Data
   const [categories, setCategories] = useState<Category[]>([]);
@@ -46,6 +50,9 @@ export default function GamePage() {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string>('medium');
 
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+
   // Game Loop
   const [gameQuestions, setGameQuestions] = useState<Question[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -56,13 +63,18 @@ export default function GamePage() {
     isCorrect: false,
     locked: false
   });
+  const [isQuestionLoading, setIsQuestionLoading] = useState(false);
+  const [displayImage, setDisplayImage] = useState<string | null>(null);
+
+  // --- Derived State ---
+  const currentQ = gameQuestions[currentIndex];
 
   // --- Actions ---
   const loadCategories = async () => {
     setIsLoading(true);
     try {
       const data = await getCategories();
-      setCategories(data);
+      setCategories(data || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -70,29 +82,99 @@ export default function GamePage() {
     }
   };
 
-  const handleResize = () => {
-    const shell = document.getElementById('shell');
-    if (shell) {
-      const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
-      shell.style.transform = `scale(${scale})`;
-      shell.style.opacity = '1';
-    }
-  };
-
   // --- Effects ---
   useEffect(() => {
+    const handleResize = () => {
+      if (shellRef.current) {
+        const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+        shellRef.current.style.transform = `scale(${scale})`;
+        shellRef.current.style.opacity = '1';
+      }
+    };
+
     handleResize();
     window.addEventListener('resize', handleResize);
     loadCategories();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // --- Effect: Trigger Animations on Answer ---
+  useEffect(() => {
+    if (answerState.locked && answerState.selectedIdx !== null) {
+      if (gameMode === 'stealth') return; // No feedback in stealth mode
+
+      const btn = document.getElementById(`btn-answer-${answerState.selectedIdx}`);
+      if (btn) {
+        if (answerState.isCorrect) {
+          const animations = ['flip', 'confetti', 'pulse'] as const;
+          triggerCorrectFeedback(btn, animations[Math.floor(Math.random() * animations.length)]);
+        } else {
+          triggerWrongFeedback(btn);
+        }
+      }
+    }
+  }, [answerState.locked, answerState.selectedIdx, answerState.isCorrect, gameMode]);
+
+  // --- Effect: Sync Audio State ---
+  useEffect(() => {
+    setSoundEnabled(isAudioOn);
+  }, [isAudioOn]);
+
+  // --- Effect: Preload Assets ---
+  useEffect(() => {
+    if (view === 'GAME' && currentQ) {
+      let active = true;
+      
+      const loadAssets = async () => {
+        // 1. Determine Image URL (Question image or Fallback)
+        let imageToUse = selectedQuiz?.imageUrl || null;
+        
+        if (currentQ.imageUrl) {
+          try {
+            await new Promise((resolve, reject) => {
+              const img = new Image();
+              img.src = currentQ.imageUrl;
+              img.onload = resolve;
+              img.onerror = reject;
+            });
+            imageToUse = currentQ.imageUrl;
+          } catch (e) {
+            console.warn("Image load failed, using fallback");
+          }
+        }
+
+        // 2. Preload Audio (if exists)
+        if (currentQ.audioUrls?.en) {
+          try {
+            await new Promise((resolve) => {
+              const audio = new Audio();
+              audio.src = currentQ.audioUrls!.en;
+              audio.onloadeddata = () => resolve(null);
+              audio.onerror = () => resolve(null); // Don't block on audio error
+            });
+          } catch (e) {
+            console.warn("Audio load failed");
+          }
+        }
+
+        if (active) {
+          setDisplayImage(imageToUse);
+          setIsQuestionLoading(false);
+        }
+      };
+
+      loadAssets();
+      return () => { active = false; };
+    }
+  }, [currentQ, view, selectedQuiz]);
+
   const selectCategory = async (cat: Category) => {
     setSelectedCategory(cat);
     setIsLoading(true);
     try {
       const data = await getQuizzes(cat.id);
-      setQuizzes(data.quizzes);
+      const sortedQuizzes = data.quizzes.sort((a: Quiz, b: Quiz) => a.title.localeCompare(b.title));
+      setQuizzes(sortedQuizzes);
       setView('QUIZZES');
     } catch (e) {
       console.error(e);
@@ -107,6 +189,7 @@ export default function GamePage() {
     try {
       const { questions } = await getQuestions(quiz.id);
       setQuestions(questions as any);
+      setSelectedLevel('medium');
       setView('LEVELS');
     } catch (e) {
       console.error(e);
@@ -115,11 +198,13 @@ export default function GamePage() {
     }
   };
 
-  const startGame = (level: string) => {
+  const selectLevel = (level: string) => {
     setSelectedLevel(level);
-    
+  };
+
+  const startGame = () => {
     // Filter by level and shuffle
-    let filtered = questions.filter(q => (q.difficulty || 'medium') === level);
+    let filtered = questions.filter(q => (q.difficulty || 'medium') === selectedLevel);
     
     // Fallback: if no questions for this level, take any to avoid empty game
     if (filtered.length === 0) filtered = questions;
@@ -136,6 +221,7 @@ export default function GamePage() {
     setScore(0);
     setCurrentIndex(0);
     loadQuestion(shuffled[0]);
+    setIsQuestionLoading(true);
     setView('GAME');
   };
 
@@ -146,23 +232,28 @@ export default function GamePage() {
     setAnswerState({ selectedIdx: null, isCorrect: false, locked: false });
   };
 
+  const handleNext = () => {
+    if (currentIndex < gameQuestions.length - 1) {
+      setIsQuestionLoading(true);
+      const nextIdx = currentIndex + 1;
+      setCurrentIndex(nextIdx);
+      loadQuestion(gameQuestions[nextIdx]);
+    } else {
+      setView('RESULT');
+    }
+  };
+
   const handleAnswer = (idx: number, isCorrect: boolean) => {
+    if (gameMode === 'stealth') return;
     if (answerState.locked) return;
 
     const newScore = isCorrect ? score + 1 : score;
     setScore(newScore);
     setAnswerState({ selectedIdx: idx, isCorrect, locked: true });
 
-    // Auto advance
-    setTimeout(() => {
-      if (currentIndex < gameQuestions.length - 1) {
-        const nextIdx = currentIndex + 1;
-        setCurrentIndex(nextIdx);
-        loadQuestion(gameQuestions[nextIdx]);
-      } else {
-        setView('RESULT');
-      }
-    }, 2500);
+    if (gameMode === 'auto') {
+      setTimeout(handleNext, 2000);
+    }
   };
 
   const handleRestart = () => {
@@ -172,8 +263,25 @@ export default function GamePage() {
     setQuestions([]);
   };
 
+  const handleBack = () => {
+    switch (view) {
+      case 'QUIZZES':
+        setView('CATEGORIES');
+        setSelectedCategory(null);
+        break;
+      case 'LEVELS':
+        setView('QUIZZES');
+        setSelectedQuiz(null);
+        break;
+      case 'RESULT':
+        setView('QUIZZES');
+        setGameQuestions([]);
+        setSelectedQuiz(null);
+        break;
+    }
+  };
+
   // --- Render Helpers ---
-  const currentQ = gameQuestions[currentIndex];
   const isLandscape = currentQ?.imageMeta?.orientation !== 'portrait'; // Default to landscape
 
   return (
@@ -182,20 +290,18 @@ export default function GamePage() {
       <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
       <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
 
-      <div id="shell">
+      <div id="shell" ref={shellRef} className={view === 'GAME' ? 'view-game' : ''}>
         {/* Top Nav (Empty as per brief, but useful for back button during nav) */}
         <nav id="topnav">
-          {view !== 'CATEGORIES' && view !== 'GAME' && view !== 'RESULT' && (
-            <button onClick={() => setView('CATEGORIES')} className="nav-back">
-              <span className="material-icons-round">arrow_back</span> Home
-            </button>
-          )}
+          {/* Navigation moved to individual views */}
         </nav>
 
         {/* --- VIEW: CATEGORIES --- */}
         {view === 'CATEGORIES' && (
           <section className="menu-view">
-            <h1 className="menu-title">Select a Topic</h1>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+              <h1 className="menu-title" style={{ marginBottom: 0 }}>Play Trivia</h1>
+            </div>
             {isLoading ? <div className="loader">Loading...</div> : (
               <div className="card-grid">
                 {categories.map(cat => (
@@ -215,7 +321,13 @@ export default function GamePage() {
         {/* --- VIEW: QUIZZES --- */}
         {view === 'QUIZZES' && (
           <section className="menu-view">
-            <h1 className="menu-title">{selectedCategory?.name}</h1>
+            <div className="view-header">
+              <button className="nav-back" onClick={handleBack}>
+                <span className="material-icons-round">arrow_back</span>
+                <span>Back</span>
+              </button>
+              <h1 className="menu-title" style={{ marginBottom: 0 }}>{selectedCategory?.name}</h1>
+            </div>
             {isLoading ? <div className="loader">Loading...</div> : (
               <div className="card-grid">
                 {quizzes.map(quiz => (
@@ -234,20 +346,76 @@ export default function GamePage() {
 
         {/* --- VIEW: LEVELS --- */}
         {view === 'LEVELS' && (
-          <section className="menu-view centered">
-            <div className="level-card">
-              <div className="level-img">
+          <section className="menu-view centered level-view-container">
+            <div className="lobby-card overlay-card">
+              <div className="lobby-left">
                 {selectedQuiz?.imageUrl && <img src={selectedQuiz.imageUrl} alt="Cover" />}
               </div>
-              <h1 className="menu-title">{selectedQuiz?.title}</h1>
-              <p className="menu-subtitle">Select Difficulty</p>
               
-              <div className="level-buttons">
-                {['easy', 'medium', 'hard'].map(level => (
-                  <button key={level} className="level-btn" onClick={() => startGame(level)}>
-                    {level.toUpperCase()}
+              <div className="lobby-right">
+                <div style={{ width: '100%', display: 'flex', marginBottom: 10 }}>
+                  <button className="nav-back" onClick={handleBack}>
+                    <span className="material-icons-round">arrow_back</span>
+                    <span>Back</span>
                   </button>
-                ))}
+                </div>
+                <h1 className="menu-title" style={{ marginTop: 0 }}>{selectedQuiz?.title}</h1>
+                
+                <div className="setting-row">
+                  <span className="setting-label">Level</span>
+                  <div className="mode-selector">
+                    {['easy', 'medium', 'hard'].map(level => {
+                      const count = questions.filter(q => (q.difficulty || 'medium') === level).length;
+                      const isDisabled = count < 5;
+                      return (
+                        <button 
+                          key={level}
+                          className={`mode-opt ${selectedLevel === level ? 'active' : ''}`}
+                          onClick={() => selectLevel(level)}
+                          disabled={isDisabled}
+                          style={{ opacity: isDisabled ? 0.3 : 1, cursor: isDisabled ? 'not-allowed' : 'pointer' }}
+                        >
+                          {level.toUpperCase()}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                <div className="setting-row">
+                  <span className="setting-label">Audio</span>
+                  <button 
+                    className={`toggle-btn ${isAudioOn ? 'on' : 'off'}`} 
+                    onClick={() => setIsAudioOn(!isAudioOn)}
+                  >
+                    <div className="toggle-thumb"></div>
+                  </button>
+                </div>
+
+                <div className="setting-row">
+                  <span className="setting-label">Mode</span>
+                  <div className="mode-selector">
+                    {(['casual', 'auto', 'stealth'] as const).map(m => (
+                      <button 
+                        key={m}
+                        className={`mode-opt ${gameMode === m ? 'active' : ''}`}
+                        onClick={() => setGameMode(m)}
+                      >
+                        {m.charAt(0).toUpperCase() + m.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mode-desc">
+                  {gameMode === 'casual' && "Standard play. Immediate feedback. Manual navigation."}
+                  {gameMode === 'auto' && "Speedrun! Immediate feedback. Auto-advances after 2s."}
+                  {gameMode === 'stealth' && "Pub Quiz style. No immediate feedback. Reveal answers at the end."}
+                </div>
+
+                <button className="level-btn primary" onClick={startGame} style={{ marginTop: 20, width: '100%' }}>
+                  Start Game
+                </button>
               </div>
             </div>
           </section>
@@ -256,22 +424,31 @@ export default function GamePage() {
         {/* --- VIEW: GAME --- */}
         {view === 'GAME' && currentQ && (
           <>
+            {isQuestionLoading && (
+              <div className="loading-overlay">
+                <div className="spinner"></div>
+                <p>Loading Question...</p>
+              </div>
+            )}
+
             {/* Audio Player - Auto plays when question loads. TODO: Use selected language */}
-            {currentQ.audioUrls?.en && (
+            {!isQuestionLoading && currentQ.audioUrls?.en && (
               <audio 
+                ref={audioRef}
                 key={currentQ.id} 
                 src={currentQ.audioUrls.en} 
                 autoPlay 
+                muted={!isAudioOn}
                 style={{ display: 'none' }} 
               />
             )}
-            <section id="content" className={isLandscape ? 'landscape' : 'portrait'}>
+            <section id="content" className={isLandscape ? 'landscape' : 'portrait'} style={{ opacity: isQuestionLoading ? 0 : 1 }}>
               {/* Image */}
               <div id="image-card">
-                {currentQ.imageUrl ? (
+                {displayImage ? (
                   <>
-                    <img id="trivia-img" src={currentQ.imageUrl} alt="Trivia image" />
-                    {currentQ.imageMeta?.photographer && (
+                    <img id="trivia-img" key={currentQ.id} src={displayImage} alt="Trivia image" />
+                    {displayImage === currentQ.imageUrl && currentQ.imageMeta?.photographer && (
                       <div className="photo-credit">
                         Photo: {currentQ.imageMeta.photographer}
                       </div>
@@ -292,15 +469,21 @@ export default function GamePage() {
                   {shuffledAnswers.map((ans, idx) => {
                     let statusClass = '';
                     if (answerState.locked) {
-                      if (ans.isCorrect) statusClass = 'correct';
-                      else if (answerState.selectedIdx === idx) statusClass = 'wrong';
+                      if (gameMode === 'stealth') {
+                        if (answerState.selectedIdx === idx) statusClass = 'selected-stealth';
+                      } else {
+                        if (ans.isCorrect) statusClass = 'correct';
+                        else if (answerState.selectedIdx === idx) statusClass = 'wrong';
+                      }
                     }
 
                     return (
                       <button 
                         key={idx} 
+                        id={`btn-answer-${idx}`}
                         className={`ans ${statusClass} ${answerState.locked ? 'locked' : ''}`}
                         onClick={() => handleAnswer(idx, ans.isCorrect)}
+                        disabled={gameMode === 'stealth'}
                       >
                         <div className="badge">{String.fromCharCode(65 + idx)}</div>
                         <div className="ans-label">{ans.text}</div>
@@ -318,20 +501,37 @@ export default function GamePage() {
                 <span id="q-counter">{currentIndex + 1} / {gameQuestions.length}</span>
               </div>
 
-              <div className="bar-sep"></div>
-
-              <div className="bar-item" style={{ gap: '10px' }}>
-                <span style={{ fontSize: '.72rem', textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>Progress</span>
-                <div className="prog-track">
-                  <div className="prog-fill" style={{ width: `${((currentIndex) / gameQuestions.length) * 100}%` }}></div>
-                </div>
-              </div>
-
               <div className="bar-spacer"></div>
 
-              <div className="bar-item lit">
-                <span className="material-icons-round">star</span>
-                <span id="score-val">Score: {score}</span>
+              {gameMode !== 'stealth' && (
+                <div className="bar-item lit">
+                  <span className="material-icons-round">star</span>
+                  <span id="score-val">Score: {score}</span>
+                </div>
+              )}
+
+              <div className="bar-sep"></div>
+
+              <div className="bar-tools">
+                <button 
+                  className="bar-icon-btn" 
+                  onClick={() => {
+                    if (audioRef.current) {
+                      audioRef.current.currentTime = 0;
+                      audioRef.current.play().catch(e => console.error(e));
+                    }
+                  }}
+                  disabled={!isAudioOn || !currentQ.audioUrls?.en}
+                  style={{ opacity: (isAudioOn && currentQ.audioUrls?.en) ? 1 : 0.3 }}
+                >
+                  <span className="material-icons-round">replay</span>
+                </button>
+
+                {gameMode !== 'auto' && (
+                  <button className="next-btn" onClick={handleNext}>
+                    Next <span className="material-icons-round" style={{ fontSize: '1.2em' }}>arrow_forward</span>
+                  </button>
+                )}
               </div>
             </footer>
           </>
@@ -340,19 +540,52 @@ export default function GamePage() {
         {/* --- VIEW: RESULT --- */}
         {view === 'RESULT' && (
           <section className="menu-view centered">
-            <div className="result-card">
-              <div className="result-icon">🏆</div>
-              <h1 className="menu-title">Quiz Complete!</h1>
-              <div className="final-score">
-                <span className="score-big">{score}</span>
-                <span className="score-total">/ {gameQuestions.length}</span>
-              </div>
-              <p className="result-msg">
-                {score === gameQuestions.length ? "Perfect Score!" : 
-                 score > gameQuestions.length / 2 ? "Great Job!" : "Nice Try!"}
-              </p>
-              <button className="level-btn primary" onClick={handleRestart}>Play Again</button>
+            <div className="result-back-overlay">
+              <button className="nav-back" onClick={handleBack}>
+                <span className="material-icons-round">arrow_back</span>
+                <span>Back</span>
+              </button>
             </div>
+            {gameMode === 'stealth' ? (
+              <div className="stealth-results-card">
+                <h1 className="menu-title">Answers</h1>
+                <div className="stealth-grid">
+                  {Array.from({ length: Math.ceil(gameQuestions.length / 5) }).map((_, groupIdx) => (
+                    <div key={groupIdx} className="stealth-group">
+                      <h3 className="group-title">Questions {groupIdx * 5 + 1} - {Math.min((groupIdx + 1) * 5, gameQuestions.length)}</h3>
+                      {gameQuestions.slice(groupIdx * 5, (groupIdx + 1) * 5).map((q, i) => {
+                        const globalNum = groupIdx * 5 + i + 1;
+                        const correct = q.answers.find(a => a.isCorrect);
+                        return (
+                          <div key={q.id} className="stealth-item">
+                            <span className="s-num">{globalNum}.</span>
+                            <div className="s-content">
+                              <div className="s-q">{q.text}</div>
+                              <div className="s-a">{correct?.text}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+                <button className="level-btn primary" onClick={handleRestart} style={{ marginTop: 30 }}>Play Again</button>
+              </div>
+            ) : (
+              <div className="result-card">
+                <div className="result-icon">🏆</div>
+                <h1 className="menu-title">Quiz Complete!</h1>
+                <div className="final-score">
+                  <span className="score-big">{score}</span>
+                  <span className="score-total">/ {gameQuestions.length}</span>
+                </div>
+                <p className="result-msg">
+                  {score === gameQuestions.length ? "Perfect Score!" : 
+                   score > gameQuestions.length / 2 ? "Great Job!" : "Nice Try!"}
+                </p>
+                <button className="level-btn primary" onClick={handleRestart}>Play Again</button>
+              </div>
+            )}
           </section>
         )}
       </div>
@@ -388,7 +621,7 @@ export default function GamePage() {
           width: 1280px;
           height: 720px;
           display: grid;
-          grid-template-rows: 96px 1fr 52px;
+          grid-template-rows: 96px 1fr;
           background: var(--black);
           font-family: 'Poppins', sans-serif;
           font-weight: 600;
@@ -400,10 +633,14 @@ export default function GamePage() {
           opacity: 0; /* Hidden until JS calculates scale */
           transition: opacity 0.2s;
         }
+        #shell.view-game {
+          grid-template-rows: 96px 1fr 72px;
+        }
 
         /* ── Top nav ── */
         #topnav {
-          background: var(--black);
+          background: url('topNav.png') no-repeat center center;
+          background-size: cover;
           display: flex;
           align-items: center;
           padding: 0 24px;
@@ -426,6 +663,16 @@ export default function GamePage() {
           border-color: var(--teal);
           color: var(--teal);
         }
+        .nav-icon-btn {
+          background: transparent;
+          border: none;
+          color: rgba(255,255,255,0.5);
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 50%;
+          transition: color 0.2s;
+        }
+        .nav-icon-btn:hover { color: var(--white); }
 
         /* ── Menus (Categories/Quizzes) ── */
         .menu-view {
@@ -454,11 +701,14 @@ export default function GamePage() {
           border-radius: 16px;
           overflow: hidden;
           cursor: pointer;
-          transition: transform 0.2s, background 0.2s;
+          position: relative;
+          text-align: center;
+          /* Pre-set a transparent border to prevent "jumping" when hovering */
+          border: 5px dotted transparent;
+          transition: border-color 0.3s ease; /* Makes the spots fade in smoothly */
         }
         .menu-card:hover {
-          transform: translateY(-4px);
-          background: var(--grey2);
+          border-color: #66e0e0;
         }
         .card-img-wrap {
           height: 140px;
@@ -474,8 +724,8 @@ export default function GamePage() {
         }
         .no-img { font-size: 3rem; opacity: 0.5; }
         .card-label {
-          padding: 16px 16px 4px;
-          font-size: 1.1rem;
+          padding: 16px 8px;
+          font-size: 1.5rem;
           font-weight: 700;
         }
         .card-meta {
@@ -486,14 +736,22 @@ export default function GamePage() {
 
         /* ── Level Selection ── */
         .level-card {
-          text-align: center;
-          width: 400px;
+          text-align: left;
+          width: 900px;
+          max-width: 90vw;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 48px;
+          background: var(--grey);
+          padding: 40px;
+          border-radius: 24px;
+          align-items: center;
         }
         .level-img {
-          width: 120px; height: 120px;
+          width: 100%; 
+          aspect-ratio: 4/3;
           border-radius: 20px;
           overflow: hidden;
-          margin: 0 auto 20px;
           background: #222;
         }
         .level-img img { width: 100%; height: 100%; object-fit: cover; }
@@ -501,6 +759,7 @@ export default function GamePage() {
         .level-buttons { display: flex; flex-direction: column; gap: 12px; }
         .level-btn {
           background: var(--grey);
+          background: #2c2c2c; /* Slightly lighter than card bg */
           color: var(--white);
           border: none;
           padding: 16px;
@@ -514,6 +773,13 @@ export default function GamePage() {
         .level-btn:hover { background: var(--teal); color: var(--black); }
         .level-btn.primary { background: var(--teal); color: var(--black); }
 
+        .view-header {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          margin-bottom: 24px;
+        }
+
         /* ── Results ── */
         .result-card { text-align: center; }
         .result-icon { font-size: 5rem; margin-bottom: 10px; }
@@ -521,6 +787,12 @@ export default function GamePage() {
         .score-big { font-size: 5rem; color: var(--teal); line-height: 1; }
         .score-total { font-size: 2rem; color: #666; }
         .result-msg { font-size: 1.5rem; color: #aaa; margin-bottom: 40px; }
+        .result-back-overlay {
+          position: absolute;
+          top: 20px;
+          left: 40px;
+          z-index: 10;
+        }
 
         /* ─────────────────────────────────────
            GAME CONTENT AREA
@@ -531,6 +803,7 @@ export default function GamePage() {
           gap: 16px;
           background: var(--black);
           min-height: 0;
+          position: relative;
         }
         #content.landscape {
           grid-template-columns: 58fr 42fr;
@@ -655,9 +928,8 @@ export default function GamePage() {
 
         /* States */
         .ans.correct {
-          background: var(--teal) !important;
-          box-shadow: 0 4px 0 rgba(0,0,0,0.5) !important;
-          animation: pop .3s ease;
+          background: #66e0e0;
+          box-shadow: 0 4px 0 rgba(0,0,0,0.5);
           color: var(--black);
         }
         .ans.correct .badge {
@@ -666,11 +938,14 @@ export default function GamePage() {
           color: var(--black);
         }
         .ans.wrong {
-          background: rgba(255,255,255,0.04) !important;
-          box-shadow: 0 4px 0 rgba(0,0,0,0.3) !important;
+          background: rgba(255,255,255,0.04);
+          box-shadow: 0 4px 0 rgba(0,0,0,0.3);
           opacity: .32;
         }
         .ans.locked { pointer-events: none; }
+        .ans.selected-stealth { background: var(--white); color: var(--black); box-shadow: 0 4px 0 rgba(255,255,255,0.5); }
+        .ans:disabled { cursor: default; opacity: 1; }
+        .ans:disabled:hover { transform: none; background: var(--grey); box-shadow: 0 4px 0 rgba(0,0,0,0.6); }
 
         @keyframes pop {
           0%   { transform: scale(1); }
@@ -685,8 +960,9 @@ export default function GamePage() {
           display: flex;
           align-items: center;
           padding: 0 24px;
-          gap: 22px;
-          height: 52px;
+          justify-content: space-between;
+          gap: 16px;
+          height: 72px;
         }
         .bar-item {
           display: flex;
@@ -703,7 +979,8 @@ export default function GamePage() {
         }
         .bar-item.lit { color: var(--white); }
         .bar-sep { width: 1px; height: 26px; background: #2a2a2a; flex-shrink: 0; }
-        .bar-spacer { flex: 1; }
+        .bar-spacer { flex: 0; }
+        .bar-tools { display: flex; align-items: center; gap: 16px; }
 
         .prog-track {
           width: 150px; height: 5px;
@@ -719,6 +996,178 @@ export default function GamePage() {
         }
         .loader { color: #666; font-size: 1.5rem; text-align: center; margin-top: 50px; }
         .empty-msg { color: #666; text-align: center; margin-top: 50px; width: 100%; grid-column: 1/-1; }
+
+        .audio-toggle {
+          background: rgba(255,255,255,0.1);
+          border: 1px solid rgba(255,255,255,0.2);
+          color: var(--white);
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 0.2s;
+        }
+        .audio-toggle:hover {
+          background: rgba(255,255,255,0.2);
+          border-color: var(--white);
+        }
+        .bar-icon-btn {
+          background: transparent;
+          border: none;
+          color: var(--teal);
+          cursor: pointer;
+          padding: 8px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: background 0.2s;
+        }
+        .bar-icon-btn:hover {
+          background: rgba(102, 224, 224, 0.1);
+        }
+        .next-btn {
+          background: var(--teal);
+          color: var(--black);
+          border: none;
+          padding: 8px 16px;
+          border-radius: 8px;
+          font-family: inherit;
+          font-weight: 700;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: transform 0.1s;
+        }
+        .next-btn:active { transform: scale(0.96); }
+
+        /* Lobby Styles */
+        .level-view-container {
+          position: relative;
+          overflow: hidden;
+        }
+        .overlay-card {
+          position: relative;
+          z-index: 1;
+          background: rgba(30, 30, 30, 0.9) !important;
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(255,255,255,0.1);
+          box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .lobby-card {
+          background: var(--grey);
+          padding: 0;
+          border-radius: 24px;
+          width: 1024px;
+          max-width: 90vw;
+          display: flex;
+          overflow: hidden;
+        }
+        .lobby-left {
+          width: 50%;
+          background: #111;
+          position: relative;
+        }
+        .lobby-left img {
+          width: 100%; height: 100%; object-fit: cover; display: block;
+        }
+        .lobby-right {
+          flex: 1;
+          padding: 40px;
+          display: flex; flex-direction: column; justify-content: center;
+        }
+        .setting-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+        .setting-label { font-size: 1.2rem; font-weight: 600; color: #ccc; }
+        
+        .toggle-btn {
+          width: 60px; height: 32px;
+          border-radius: 99px;
+          border: none;
+          position: relative;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+        .toggle-btn.on { background: var(--white); }
+        .toggle-btn.off { background: #333; }
+        .toggle-thumb {
+          width: 24px; height: 24px;
+          background: white;
+          border-radius: 50%;
+          position: absolute;
+          top: 4px;
+          left: 4px;
+          transition: transform 0.2s;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .toggle-btn.on .toggle-thumb { background: var(--black); transform: translateX(28px); }
+
+        .mode-selector { display: flex; gap: 8px; background: #111; padding: 4px; border-radius: 12px; }
+        .mode-opt { flex: 1; background: transparent; border: none; color: #888; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .mode-opt.active { background: var(--white); color: var(--black); box-shadow: 0 2px 8px rgba(255, 255, 255, 0.2); }
+        
+        .mode-desc { margin-top: -10px; margin-bottom: 20px; font-size: 0.9rem; color: #666; min-height: 1.4em; }
+
+        /* Stealth Results */
+        .stealth-results-card {
+          width: 1000px;
+          max-width: 95vw;
+          background: var(--grey);
+          border-radius: 24px;
+          padding: 40px;
+          max-height: 85vh;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+        .stealth-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 30px;
+          width: 100%;
+        }
+        .stealth-group {
+          background: rgba(0,0,0,0.2);
+          padding: 20px;
+          border-radius: 16px;
+        }
+        .group-title {
+          color: var(--teal);
+          margin-bottom: 16px;
+          font-size: 1.1rem;
+          border-bottom: 1px solid rgba(255,255,255,0.1);
+          padding-bottom: 8px;
+        }
+        .stealth-item { display: flex; gap: 12px; margin-bottom: 12px; font-size: 0.9rem; text-align: left; }
+        .s-num { color: #888; font-weight: 700; min-width: 24px; }
+        .s-content { flex: 1; }
+        .s-q { color: #ccc; margin-bottom: 4px; }
+        .s-a { color: var(--white); font-weight: 700; }
+
+        .loading-overlay {
+          position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+          background: var(--black);
+          display: flex; flex-direction: column; align-items: center; justify-content: center;
+          z-index: 100; gap: 20px;
+        }
+        .spinner {
+          width: 40px; height: 40px;
+          border: 4px solid rgba(255,255,255,0.1);
+          border-left-color: var(--teal);
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </div>
   );

@@ -12,6 +12,8 @@
     "@genkit-ai/googleai": "^1.28.0",
     "@google-cloud/text-to-speech": "^6.4.0",
     "@google-cloud/translate": "^9.3.0",
+    "@types/canvas-confetti": "^1.9.0",
+    "canvas-confetti": "^1.9.4",
     "firebase": "^12.9.0",
     "firebase-admin": "^13.6.1",
     "genkit": "^1.28.0",
@@ -19,6 +21,7 @@
     "papaparse": "^5.5.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "sharp": "^0.34.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
