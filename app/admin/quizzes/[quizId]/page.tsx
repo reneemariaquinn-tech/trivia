@@ -4,6 +4,7 @@ import { useEffect, useState, use as useReact } from 'react';
 import { 
   getQuestions, 
   upsertQuestion, 
+  upsertQuiz,
   bulkDeleteQuestions, 
   bulkUpdateDifficulty,
   bulkUploadQuestions,
@@ -16,7 +17,7 @@ import { searchImages } from '../../../actions';
 export default function QuestionsPage({ params }: { params: Promise<{ quizId: string }> }) {
   const { quizId } = useReact(params);
   const [questions, setQuestions] = useState<any[]>([]);
-  const [quizTitle, setQuizTitle] = useState('Loading...');
+  const [quiz, setQuiz] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
@@ -24,6 +25,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   
   const [deleteConfig, setDeleteConfig] = useState<{ isOpen: boolean; ids: string[] }>({ isOpen: false, ids: [] });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isQuizDrawerOpen, setIsQuizDrawerOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<any>(null);
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [csvContent, setCsvContent] = useState('');
@@ -34,7 +36,8 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     results: any[];
     provider: 'pexels' | 'wikimedia';
     isSearching: boolean;
-  }>({ isOpen: false, query: '', results: [], provider: 'pexels', isSearching: false });
+    target: 'question' | 'quiz';
+  }>({ isOpen: false, query: '', results: [], provider: 'pexels', isSearching: false, target: 'question' });
   const [manualOrientation, setManualOrientation] = useState<string>('landscape');
   
   const [filterLevel, setFilterLevel] = useState<string>('all');
@@ -45,9 +48,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   useEffect(() => { if (quizId) loadData(); }, [quizId]);
 
   const loadData = async () => {
-    const { questions, quizTitle } = await getQuestions(quizId);
+    const { questions, quiz } = await getQuestions(quizId);
     setQuestions(questions);
-    setQuizTitle(quizTitle);
+    setQuiz(quiz);
     setIsLoading(false);
   };
 
@@ -178,12 +181,17 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     setSelectedIds([]);
   };
 
-  const handleSingleAiSearch = () => {
-    if (!editingQuestion?.id) return alert("Please save the question first to enable AI search.");
+  const handleSingleAiSearch = (target: 'question' | 'quiz') => {
+    let defaultQuery = '';
     
-    const correctAnswer = editingQuestion.answers?.find((a: any) => a.isCorrect)?.text || "";
-    // Query: Correct Answer + Question Text
-    const defaultQuery = `${correctAnswer} ${editingQuestion.text || ""}`.trim();
+    if (target === 'question') {
+      if (!editingQuestion?.id) return alert("Please save the question first to enable AI search.");
+      const correctAnswer = editingQuestion.answers?.find((a: any) => a.isCorrect)?.text || "";
+      defaultQuery = `${correctAnswer} ${editingQuestion.text || ""}`.trim();
+    } else {
+      // Quiz search
+      defaultQuery = quiz?.title || "";
+    }
     
     // Open modal and trigger initial search
     setAiSearchModal({ 
@@ -191,7 +199,8 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
       query: defaultQuery, 
       results: [], 
       provider: 'pexels', 
-      isSearching: true 
+      isSearching: true,
+      target
     });
     
     performImageSearch(defaultQuery, 'pexels');
@@ -209,20 +218,28 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   };
 
   const selectImage = (img: any) => {
-    const newMeta = {
-      photographer: img.photographer || null,
-      source: img.provider || img.source,
-    };
+    if (aiSearchModal.target === 'question') {
+      const newMeta = {
+        photographer: img.photographer || null,
+        source: img.provider || img.source,
+      };
 
-    // Calculate and set orientation for the form submission
-    const orientation = (img.width && img.height && img.width >= img.height) ? 'landscape' : 'portrait';
-    setManualOrientation(orientation);
-    
-    setEditingQuestion((prev: any) => ({ 
-      ...prev, 
-      imageUrl: img.url,
-      imageMeta: { ...(prev.imageMeta || {}), ...newMeta, orientation }
-    }));
+      // Calculate and set orientation for the form submission
+      const orientation = (img.width && img.height && img.width >= img.height) ? 'landscape' : 'portrait';
+      setManualOrientation(orientation);
+      
+      setEditingQuestion((prev: any) => ({ 
+        ...prev, 
+        imageUrl: img.url,
+        imageMeta: { ...(prev.imageMeta || {}), ...newMeta, orientation }
+      }));
+    } else {
+      // Quiz Image
+      setQuiz((prev: any) => ({
+        ...prev,
+        imageUrl: img.url
+      }));
+    }
     
     setAiSearchModal(prev => ({ ...prev, isOpen: false }));
   };
@@ -276,37 +293,55 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   }
 
   return (
-    <div className="p-10 max-w-7xl mx-auto bg-slate-50 min-h-screen pb-32">
+    <div className="p-10 max-w-7xl mx-auto bg-slate-50 min-h-screen pb-32 text-slate-900 font-sans">
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
+
         <a href="/admin/topics" className="text-indigo-600 hover:text-indigo-800 text-xs font-bold uppercase tracking-widest flex items-center gap-1 transition-colors">
           ← Back
         </a>
       <div className="flex justify-between items-end mb-8">
         <div>
-          <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">{quizTitle}</h1>
+          <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">{quiz?.title || 'Loading...'}</h1>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => setIsBulkUploadOpen(true)} className="bg-white text-indigo-600 border border-indigo-200 hover:bg-indigo-50 px-6 py-2 rounded-full text-sm font-bold shadow-sm transition-all">
-            ☁️ Bulk Upload
+          <button 
+            onClick={() => setIsQuizDrawerOpen(true)}
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-full font-bold shadow-sm transition-all flex items-center gap-2"
+          >
+            <span className="material-symbols-rounded">edit</span> Edit Details
           </button>
-          <button onClick={() => { setEditingQuestion(null); setIsDrawerOpen(true); }} className="bg-indigo-600 text-white px-6 py-2 rounded-full text-sm font-bold shadow-md">+ Add Question</button>
+          <button 
+            onClick={() => {
+              // TODO: Paste the full URL from 'firebase functions:list' here
+              const functionUrl = 'https://us-central1-trivia-34f8c.cloudfunctions.net/exportGameZip';
+              window.open(`${functionUrl}?quizId=${quizId}&t=${Date.now()}`, '_blank');
+            }}
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-full font-bold shadow-sm transition-all flex items-center gap-2"
+          >
+            <span className="material-symbols-rounded">folder_zip</span> Export ZIP
+          </button>
+          <button onClick={() => setIsBulkUploadOpen(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-full font-bold shadow-sm transition-all">
+            <span className="material-symbols-rounded">content_paste_go</span> Bulk Upload
+          </button>
+          <button onClick={() => { setEditingQuestion(null); setManualOrientation('landscape'); setIsDrawerOpen(true); }} className="bg-indigo-600 text-white px-6 py-2 rounded-full font-bold shadow-md hover:bg-indigo-700 transition-all">+ Add Question</button>
         </div>
       </div>
 
       {/* FILTERS */}
-      <div className="sticky top-2 z-30 flex flex-wrap gap-4 mb-6 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+      <div className="sticky top-2 z-30 flex flex-wrap gap-4 mb-6 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <div className="flex gap-4 items-center">
-          <span className="text-xs font-bold uppercase text-slate-400">Filters:</span>
+          <span className="text-xs font-bold uppercase text-slate-500">Filters:</span>
           <input 
             type="text" 
             placeholder="Search questions..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none w-48"
+            className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 outline-none w-48"
           />
           <select 
               value={filterLevel} 
               onChange={(e) => setFilterLevel(e.target.value)}
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
           >
               <option value="all">All Levels</option>
               <option value="easy">Easy</option>
@@ -317,7 +352,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
           <select 
               value={filterImage} 
               onChange={(e) => setFilterImage(e.target.value)}
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
           >
               <option value="all">All Images</option>
               <option value="has-image">With Image</option>
@@ -327,7 +362,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
           <select 
               value={filterAudio} 
               onChange={(e) => setFilterAudio(e.target.value)}
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
           >
               <option value="all">All Audio</option>
               <option value="has-audio">With Audio</option>
@@ -336,15 +371,15 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
         </div>
 
         {selectedIds.length > 0 && (
-          <div className="flex gap-3 items-center animate-in fade-in slide-in-from-right-4 border-l pl-6 border-slate-100">
-            <span className="text-xs font-bold uppercase text-slate-400">
+          <div className="flex gap-3 items-center animate-in fade-in slide-in-from-right-4 border-l pl-6 border-slate-200">
+            <span className="text-xs font-bold uppercase text-slate-500">
                 Bulk ({selectedIds.length}):
             </span>
             <select 
               onChange={(e) => handleBulkLevelChange(e.target.value)}
               disabled={isSaving}
               value=""
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-600 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
             >
               <option value="" disabled>Set Level</option>
               <option value="easy">Easy</option>
@@ -355,7 +390,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <button 
               onClick={handleBulkAiSearch}
               disabled={isSaving}
-              className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+              className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
             >
                <span>✨</span> Find Images
             </button>
@@ -363,7 +398,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <button 
               onClick={handleBulkGenerateAudio}
               disabled={isSaving}
-              className="bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
+              className="bg-slate-100 text-slate-600 hover:bg-slate-200 px-3 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2"
             >
                <span>🔊</span> Generate Audio
             </button>
@@ -379,26 +414,26 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
         )}
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl border border-slate-100">
+      <div className="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="bg-slate-800 text-white text-sm">
-              <th className="sticky top-[85px] z-20 p-5 w-12 first:rounded-tl-2xl">
-                <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="rounded text-indigo-500 focus:ring-0 cursor-pointer" />
+            <tr className="bg-slate-800 text-white text-sm border-b border-slate-200">
+              <th className="p-5 w-12 first:rounded-tl-2xl">
+                <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="rounded text-indigo-600 focus:ring-0 cursor-pointer bg-white border-slate-300" />
               </th>
-              <th className="sticky top-[85px] z-20 p-5 w-20">Image</th>
-              <th className="sticky top-[85px] z-20 p-5 w-16 text-center">Audio</th>
-              <th className="sticky top-[85px] z-20 p-5">Question</th>
-              <th className="sticky top-[85px] z-20 p-5">Correct Answer</th>
-              <th className="sticky top-[85px] z-20 p-5">Level</th>
-              <th className="sticky top-[85px] z-20 p-5 text-right pr-10 last:rounded-tr-2xl">Actions</th>
+              <th className="p-5 w-20">Image</th>
+              <th className="p-5 w-16 text-center">Audio</th>
+              <th className="p-5">Question</th>
+              <th className="p-5">Correct Answer</th>
+              <th className="p-5">Level</th>
+              <th className="p-5 text-right pr-10 last:rounded-tr-2xl">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filteredQuestions.map((q) => (
-              <tr key={q.id} className="hover:bg-slate-50">
+              <tr key={q.id} className="hover:bg-slate-50 transition-colors">
                 <td className="p-5">
-                   <input type="checkbox" checked={selectedIds.includes(q.id)} onChange={() => toggleSelectOne(q.id)} />
+                   <input type="checkbox" checked={selectedIds.includes(q.id)} onChange={() => toggleSelectOne(q.id)} className="rounded text-indigo-600 focus:ring-0 cursor-pointer bg-white border-slate-300" />
                 </td>
                 <td className="p-5">
                   {q.imageUrl ? (
@@ -409,30 +444,30 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                 </td>
                 <td className="p-5 text-center">
                   {(q.audioUrl || (q.audioUrls && Object.keys(q.audioUrls).length > 0)) && (
-                    <span className="text-lg text-indigo-600">🔊</span>
+                    <span className="material-symbols-rounded text-indigo-600">mic</span>
                   )}
                 </td>
-                <td className="p-5 font-medium max-w-xs truncate">{q.text}</td>
+                <td className="p-5 font-medium max-w-xs truncate text-slate-900">{q.text}</td>
                 <td className="p-5 text-sm text-slate-500 max-w-xs truncate">{q.answers?.find((a: any) => a.isCorrect)?.text || '-'}</td>
-                <td className="p-5 text-xs font-bold uppercase text-slate-400">{q.difficulty || 'medium'}</td>
+                <td className="p-5 text-xs font-bold uppercase text-slate-500">{q.difficulty || 'medium'}</td>
                 <td className="p-5 text-right pr-10 relative">
                   <button 
                     onClick={() => setActiveMenu(activeMenu === q.id ? null : q.id)}
-                    className="w-10 h-10 inline-flex items-center justify-center rounded-full hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all font-bold text-xl"
+                    className="w-10 h-10 inline-flex items-center justify-center rounded-full hover:bg-slate-100 hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all font-bold text-xl"
                   >
                     ⋮
                   </button>
                   {activeMenu === q.id && (
                     <div className="absolute right-10 top-14 w-32 bg-white rounded-xl shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100 text-left">
                       <button 
-                        onClick={() => { setEditingQuestion(q); setIsDrawerOpen(true); setActiveMenu(null); }}
-                        className="w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-left"
+                        onClick={() => { setEditingQuestion(q); setManualOrientation(q.imageMeta?.orientation || 'landscape'); setIsDrawerOpen(true); setActiveMenu(null); }}
+                        className="w-full px-4 py-2 text-sm font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-left"
                       >
                         Edit
                       </button>
                       <button 
                         onClick={() => { setDeleteConfig({ isOpen: true, ids: [q.id] }); setActiveMenu(null); }}
-                        className="w-full px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors text-left"
+                        className="w-full px-4 py-2 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors text-left"
                       >
                         Delete
                       </button>
@@ -447,9 +482,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
 
       {/* DRAWER */}
       {isDrawerOpen && (
-        <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-xl bg-white p-10 shadow-2xl overflow-y-auto">
+        <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-xl bg-white p-10 shadow-2xl overflow-y-auto border-l border-slate-200">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">{editingQuestion ? 'Edit' : 'Add'} Question</h2>
+            <h2 className="text-2xl font-bold text-slate-900">{editingQuestion ? 'Edit' : 'Add'} Question</h2>
             <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -477,14 +512,14 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <input type="hidden" name="imageSource" value={editingQuestion?.imageMeta?.source || ''} />
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Question Image</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Question Image</label>
               {editingQuestion?.imageUrl ? (
                 <div className="relative w-full h-48 group rounded-xl overflow-hidden border border-slate-200">
                   <img src={editingQuestion.imageUrl} className="w-full h-full object-cover" alt="Question" />
                   <div className="absolute top-2 right-2 flex gap-2">
                     <button 
                       type="button"
-                      onClick={handleSingleAiSearch}
+                      onClick={() => handleSingleAiSearch('question')}
                       className="bg-white/90 text-indigo-600 p-2 rounded-full shadow-md hover:bg-white transition-all"
                       title="Find Replacement (AI)"
                     >
@@ -510,17 +545,17 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                     className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 transition-all" 
                   />
                   
-                  <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                    <span className="text-xs font-bold text-slate-400 uppercase">Layout:</span>
-                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'landscape'} onChange={() => setManualOrientation('landscape')} /> Landscape</label>
-                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'portrait'} onChange={() => setManualOrientation('portrait')} /> Portrait</label>
+                  <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                    <span className="text-xs font-bold text-slate-500 uppercase">Layout:</span>
+                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'landscape'} onChange={() => setManualOrientation('landscape')} className="text-indigo-600 focus:ring-indigo-500 bg-white border-slate-300" /> Landscape</label>
+                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'portrait'} onChange={() => setManualOrientation('portrait')} className="text-indigo-600 focus:ring-indigo-500 bg-white border-slate-300" /> Portrait</label>
                   </div>
 
                   <>
                     <div className="text-center text-xs text-slate-400 font-bold uppercase">OR</div>
                     <button 
                       type="button"
-                      onClick={handleSingleAiSearch}
+                      onClick={() => handleSingleAiSearch('question')}
                       className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
                     >
                       <span>✨</span> Find Image with AI
@@ -531,14 +566,14 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Question Text</label>
-              <textarea name="text" defaultValue={editingQuestion?.text} required className="w-full p-3 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none" rows={3} />
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Question Text</label>
+              <textarea name="text" defaultValue={editingQuestion?.text} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none placeholder-slate-400" rows={3} />
             </div>
 
             {/* Audio Section */}
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Audio (English)</label>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Audio (English)</label>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                 {(editingQuestion?.audioUrls?.en || editingQuestion?.audioUrl) ? (
                   <audio controls src={editingQuestion.audioUrls?.en || editingQuestion.audioUrl} className="h-10 w-full" />
                 ) : (
@@ -549,7 +584,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                   type="button"
                   onClick={handleGenerateAudio}
                   disabled={isGeneratingAudio || !editingQuestion?.id}
-                  className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-200 transition-colors disabled:opacity-50 whitespace-nowrap w-full sm:w-auto"
+                  className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors disabled:opacity-50 whitespace-nowrap w-full sm:w-auto"
                 >
                   {isGeneratingAudio ? 'Generating...' : ((editingQuestion?.audioUrls?.en || editingQuestion?.audioUrl) ? 'Regenerate' : 'Generate Audio')}
                 </button>
@@ -558,8 +593,8 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Difficulty</label>
-              <select name="difficulty" defaultValue={editingQuestion?.difficulty || 'medium'} className="w-full p-3 bg-slate-50 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none">
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Difficulty</label>
+              <select name="difficulty" defaultValue={editingQuestion?.difficulty || 'medium'} className="w-full p-3 bg-slate-50 text-slate-900 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none">
                 <option value="easy">Easy</option>
                 <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
@@ -567,27 +602,27 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-400 uppercase mb-2">Answers & Correct Option</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Answers & Correct Option</label>
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                  <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
                     <input 
                       type="radio" 
                       name="correctIndex" 
                       value={i} 
                       defaultChecked={editingQuestion ? editingQuestion.answers?.[i]?.isCorrect : i === 0}
-                      className="w-5 h-5 text-indigo-600 border-slate-300 focus:ring-indigo-500"
+                      className="w-5 h-5 text-indigo-600 border-slate-300 bg-white focus:ring-indigo-500"
                     />
-                    <input name={`opt${i}`} defaultValue={editingQuestion?.answers?.[i]?.text} placeholder={`Answer Option ${i + 1}`} className="flex-1 bg-transparent border-0 text-sm focus:ring-0 outline-none" required />
+                    <input name={`opt${i}`} defaultValue={editingQuestion?.answers?.[i]?.text} placeholder={`Answer Option ${i + 1}`} className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400" required />
                   </div>
                 ))}
               </div>
             </div>
 
-            <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg">
+            <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
               {isSaving ? 'Saving...' : 'Save Question'}
             </button>
-            <button type="button" onClick={() => setIsDrawerOpen(false)} className="w-full text-slate-400 font-bold py-2">Close</button>
+            <button type="button" onClick={() => setIsDrawerOpen(false)} className="w-full text-slate-400 font-bold py-2 hover:text-slate-600 transition-colors">Close</button>
             
             {editingQuestion && (
               <button 
@@ -602,13 +637,87 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
         </div>
       )}
 
+      {/* QUIZ DRAWER */}
+      {isQuizDrawerOpen && (
+        <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-xl bg-white p-10 shadow-2xl overflow-y-auto border-l border-slate-200">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-slate-900">Edit Quiz Details</h2>
+            <button onClick={() => setIsQuizDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            setIsSaving(true);
+            const formData = new FormData(e.currentTarget);
+            await upsertQuiz(quizId, null, formData);
+            await loadData();
+            setIsQuizDrawerOpen(false);
+            setIsSaving(false);
+          }} className="space-y-6 pb-20">
+            
+            <input type="hidden" name="existingImageUrl" value={quiz?.imageUrl || ''} readOnly />
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Cover Image</label>
+              {quiz?.imageUrl ? (
+                <div className="relative w-full h-48 group rounded-xl overflow-hidden border border-slate-200">
+                  <img src={quiz.imageUrl} className="w-full h-full object-cover" alt="Cover" />
+                  <div className="absolute top-2 right-2 flex gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => handleSingleAiSearch('quiz')}
+                      className="bg-white/90 text-indigo-600 p-2 rounded-full shadow-md hover:bg-white transition-all"
+                      title="Find Replacement (AI)"
+                    >
+                      <span>✨</span>
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setQuiz({ ...quiz, imageUrl: '' })}
+                      className="bg-red-500 text-white p-2 rounded-full shadow-md hover:bg-red-600 transition-all"
+                      title="Remove Image"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <input type="file" name="imageFile" accept="image/*" className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 transition-all" />
+                  <div className="text-center text-xs text-slate-400 font-bold uppercase">OR</div>
+                  <button 
+                    type="button"
+                    onClick={() => handleSingleAiSearch('quiz')}
+                    className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span>✨</span> Find Cover Image
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Title</label>
+              <input name="title" defaultValue={quiz?.title} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none placeholder-slate-400" />
+            </div>
+
+            <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </form>
+        </div>
+      )}
+
       {/* BULK UPLOAD MODAL */}
       {isBulkUploadOpen && (
         <>
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[130]" onClick={() => setIsBulkUploadOpen(false)} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-white rounded-2xl shadow-2xl z-[140] p-8 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Bulk Upload Questions</h3>
+              <h3 className="text-xl font-bold text-slate-900">Bulk Upload Questions</h3>
               <button onClick={() => setIsBulkUploadOpen(false)} className="text-slate-400 hover:text-slate-600">✕</button>
             </div>
             
@@ -623,7 +732,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               value={csvContent}
               onChange={(e) => setCsvContent(e.target.value)}
               placeholder="Paste your CSV data here..."
-              className="w-full h-64 p-4 bg-slate-50 border-2 border-slate-100 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none mb-6 resize-none"
+              className="w-full h-64 p-4 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none mb-6 resize-none text-slate-900 placeholder-slate-400"
             />
 
             <div className="flex gap-3">
@@ -634,7 +743,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               >
                 {isSaving ? 'Uploading...' : 'Process & Upload'}
               </button>
-              <button onClick={() => setIsBulkUploadOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+              <button onClick={() => setIsBulkUploadOpen(false)} className="flex-1 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
             </div>
           </div>
         </>
@@ -645,13 +754,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
         <>
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[150]" onClick={() => setAiSearchModal(prev => ({ ...prev, isOpen: false }))} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-white rounded-2xl shadow-2xl z-[160] p-8 animate-in fade-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-slate-800 mb-4">Find Image</h3>
+            <h3 className="text-xl font-bold text-slate-900 mb-4">Find Image</h3>
             
             <div className="flex gap-4 mb-4">
               <input 
                 value={aiSearchModal.query}
                 onChange={(e) => setAiSearchModal({ ...aiSearchModal, query: e.target.value })}
-                className="flex-1 bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex-1 bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 placeholder-slate-400"
                 placeholder="Search query..."
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && performImageSearch(aiSearchModal.query, aiSearchModal.provider)}

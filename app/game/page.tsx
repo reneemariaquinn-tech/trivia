@@ -33,6 +33,16 @@ type Question = {
   answers: { text: string; isCorrect: boolean }[];
 };
 
+declare global {
+  interface Window {
+    __TRIVIA_GAME_DATA__?: {
+      quiz: Quiz;
+      questions: Question[];
+      settings?: any;
+    };
+  }
+}
+
 export default function GamePage() {
   // --- State ---
   const [view, setView] = useState<'CATEGORIES' | 'QUIZZES' | 'LEVELS' | 'GAME' | 'RESULT'>('CATEGORIES');
@@ -48,10 +58,11 @@ export default function GamePage() {
   // Selections
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
-  const [selectedLevel, setSelectedLevel] = useState<string>('medium');
+  const [selectedLevel, setSelectedLevel] = useState<string>('easy');
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const hasSavedResult = useRef(false);
 
   // Game Loop
   const [gameQuestions, setGameQuestions] = useState<Question[]>([]);
@@ -63,8 +74,9 @@ export default function GamePage() {
     isCorrect: false,
     locked: false
   });
-  const [isQuestionLoading, setIsQuestionLoading] = useState(false);
-  const [displayImage, setDisplayImage] = useState<string | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [autoHighlight, setAutoHighlight] = useState(false);
+  const autoSequenceRef = useRef<any[]>([]);
 
   // --- Derived State ---
   const currentQ = gameQuestions[currentIndex];
@@ -95,7 +107,34 @@ export default function GamePage() {
     handleResize();
     window.addEventListener('resize', handleResize);
     loadCategories();
+
+    // Check for standalone data (S3 / Single File Mode)
+    if (typeof window !== 'undefined' && window.__TRIVIA_GAME_DATA__) {
+      const { quiz, questions } = window.__TRIVIA_GAME_DATA__;
+      setSelectedQuiz(quiz);
+      setQuestions(questions);
+      setView('LEVELS');
+      setIsLoading(false);
+    } else {
+      loadCategories();
+    }
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // --- Effect: Reset Image Load State ---
+  useEffect(() => {
+    setImageLoaded(false);
+    setAutoHighlight(false);
+    // Clear any pending auto sequence timeouts when changing questions
+    autoSequenceRef.current.forEach(clearTimeout);
+    autoSequenceRef.current = [];
+  }, [currentIndex]);
+
+  // --- Effect: Cleanup Auto Sequence on Unmount ---
+  useEffect(() => {
+    return () => {
+      autoSequenceRef.current.forEach(clearTimeout);
+    };
   }, []);
 
   // --- Effect: Trigger Animations on Answer ---
@@ -120,53 +159,51 @@ export default function GamePage() {
     setSoundEnabled(isAudioOn);
   }, [isAudioOn]);
 
-  // --- Effect: Preload Assets ---
+  // --- Effect: Force Audio On in Auto Mode ---
   useEffect(() => {
-    if (view === 'GAME' && currentQ) {
-      let active = true;
-      
-      const loadAssets = async () => {
-        // 1. Determine Image URL (Question image or Fallback)
-        let imageToUse = selectedQuiz?.imageUrl || null;
-        
-        if (currentQ.imageUrl) {
-          try {
-            await new Promise((resolve, reject) => {
-              const img = new Image();
-              img.src = currentQ.imageUrl;
-              img.onload = resolve;
-              img.onerror = reject;
-            });
-            imageToUse = currentQ.imageUrl;
-          } catch (e) {
-            console.warn("Image load failed, using fallback");
-          }
-        }
-
-        // 2. Preload Audio (if exists)
-        if (currentQ.audioUrls?.en) {
-          try {
-            await new Promise((resolve) => {
-              const audio = new Audio();
-              audio.src = currentQ.audioUrls!.en;
-              audio.onloadeddata = () => resolve(null);
-              audio.onerror = () => resolve(null); // Don't block on audio error
-            });
-          } catch (e) {
-            console.warn("Audio load failed");
-          }
-        }
-
-        if (active) {
-          setDisplayImage(imageToUse);
-          setIsQuestionLoading(false);
-        }
-      };
-
-      loadAssets();
-      return () => { active = false; };
+    if (gameMode === 'auto') {
+      setIsAudioOn(true);
     }
-  }, [currentQ, view, selectedQuiz]);
+  }, [gameMode]);
+
+  // --- Effect: Save Score on Game End ---
+  useEffect(() => {
+    if (view === 'RESULT' && selectedQuiz && !hasSavedResult.current) {
+      hasSavedResult.current = true;
+      try {
+        const history = JSON.parse(localStorage.getItem('trivia_history') || '[]');
+        history.push({
+          quizId: selectedQuiz.id,
+          score: score,
+          total: gameQuestions.length,
+          date: new Date().toISOString()
+        });
+        localStorage.setItem('trivia_history', JSON.stringify(history));
+      } catch (e) {
+        console.warn("Failed to save game history", e);
+      }
+    }
+  }, [view, selectedQuiz, score, gameQuestions.length]);
+
+  // --- Effect: Preload Next Question Assets ---
+  useEffect(() => {
+    if (view === 'GAME' && currentIndex < gameQuestions.length - 1) {
+      const nextQ = gameQuestions[currentIndex + 1];
+      if (nextQ) {
+        // Preload Image
+        if (nextQ.imageUrl) {
+          const img = new Image();
+          img.src = nextQ.imageUrl;
+        }
+        // Preload Audio
+        if (nextQ.audioUrls?.en) {
+          const audio = new Audio();
+          audio.src = nextQ.audioUrls.en;
+          audio.load();
+        }
+      }
+    }
+  }, [view, currentIndex, gameQuestions]);
 
   const selectCategory = async (cat: Category) => {
     setSelectedCategory(cat);
@@ -189,7 +226,7 @@ export default function GamePage() {
     try {
       const { questions } = await getQuestions(quiz.id);
       setQuestions(questions as any);
-      setSelectedLevel('medium');
+      setSelectedLevel('easy');
       setView('LEVELS');
     } catch (e) {
       console.error(e);
@@ -217,11 +254,11 @@ export default function GamePage() {
       return;
     }
 
+    hasSavedResult.current = false;
     setGameQuestions(shuffled);
     setScore(0);
     setCurrentIndex(0);
     loadQuestion(shuffled[0]);
-    setIsQuestionLoading(true);
     setView('GAME');
   };
 
@@ -234,7 +271,6 @@ export default function GamePage() {
 
   const handleNext = () => {
     if (currentIndex < gameQuestions.length - 1) {
-      setIsQuestionLoading(true);
       const nextIdx = currentIndex + 1;
       setCurrentIndex(nextIdx);
       loadQuestion(gameQuestions[nextIdx]);
@@ -247,13 +283,14 @@ export default function GamePage() {
     if (gameMode === 'stealth') return;
     if (answerState.locked) return;
 
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+
     const newScore = isCorrect ? score + 1 : score;
     setScore(newScore);
     setAnswerState({ selectedIdx: idx, isCorrect, locked: true });
-
-    if (gameMode === 'auto') {
-      setTimeout(handleNext, 2000);
-    }
   };
 
   const handleRestart = () => {
@@ -284,17 +321,50 @@ export default function GamePage() {
   // --- Render Helpers ---
   const isLandscape = currentQ?.imageMeta?.orientation !== 'portrait'; // Default to landscape
 
+  // --- Auto Mode Sequence ---
+  const runAutoSequence = () => {
+    if (gameMode !== 'auto') return;
+    
+    // Clear any existing timeouts to prevent overlaps
+    autoSequenceRef.current.forEach(clearTimeout);
+    autoSequenceRef.current = [];
+
+    // 1. Audio finished (or skipped).
+    // 1.5s pause
+    const t1 = setTimeout(() => {
+      // 2. Highlight
+      setAutoHighlight(true);
+
+      // 1.5s pause
+      const t2 = setTimeout(() => {
+        // 3. Reveal
+        const correctIdx = shuffledAnswers.findIndex(a => a.isCorrect);
+        if (correctIdx !== -1) {
+          setAnswerState({ selectedIdx: correctIdx, isCorrect: true, locked: true });
+        }
+
+        // 1.5s pause
+        const t3 = setTimeout(() => {
+          // 4. Next
+          handleNext();
+        }, 1500);
+        autoSequenceRef.current.push(t3);
+
+      }, 1500);
+      autoSequenceRef.current.push(t2);
+
+    }, 1500);
+    autoSequenceRef.current.push(t1);
+  };
+
   return (
     <div className="game-root">
       {/* External Resources */}
       <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
       <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
 
       <div id="shell" ref={shellRef} className={view === 'GAME' ? 'view-game' : ''}>
-        {/* Top Nav (Empty as per brief, but useful for back button during nav) */}
-        <nav id="topnav">
-          {/* Navigation moved to individual views */}
-        </nav>
 
         {/* --- VIEW: CATEGORIES --- */}
         {view === 'CATEGORIES' && (
@@ -383,34 +453,33 @@ export default function GamePage() {
                 </div>
                 
                 <div className="setting-row">
-                  <span className="setting-label">Audio</span>
-                  <button 
-                    className={`toggle-btn ${isAudioOn ? 'on' : 'off'}`} 
-                    onClick={() => setIsAudioOn(!isAudioOn)}
-                  >
-                    <div className="toggle-thumb"></div>
-                  </button>
-                </div>
-
-                <div className="setting-row">
-                  <span className="setting-label">Mode</span>
+                  <span className="setting-label">Game Type</span>
                   <div className="mode-selector">
-                    {(['casual', 'auto', 'stealth'] as const).map(m => (
-                      <button 
-                        key={m}
-                        className={`mode-opt ${gameMode === m ? 'active' : ''}`}
-                        onClick={() => setGameMode(m)}
-                      >
-                        {m.charAt(0).toUpperCase() + m.slice(1)}
-                      </button>
-                    ))}
+                    <button 
+                      className={`mode-opt ${gameMode === 'casual' && isAudioOn ? 'active' : ''}`}
+                      onClick={() => { setGameMode('casual'); setIsAudioOn(true); }}
+                    >
+                      Play
+                    </button>
+                    <button 
+                      className={`mode-opt ${gameMode === 'casual' && !isAudioOn ? 'active' : ''}`}
+                      onClick={() => { setGameMode('casual'); setIsAudioOn(false); }}
+                    >
+                      Quiet
+                    </button>
+                    <button 
+                      className={`mode-opt ${gameMode === 'auto' ? 'active' : ''}`}
+                      onClick={() => { setGameMode('auto'); setIsAudioOn(true); }}
+                    >
+                      Auto
+                    </button>
                   </div>
                 </div>
 
                 <div className="mode-desc">
-                  {gameMode === 'casual' && "Standard play. Immediate feedback. Manual navigation."}
-                  {gameMode === 'auto' && "Speedrun! Immediate feedback. Auto-advances after 2s."}
-                  {gameMode === 'stealth' && "Pub Quiz style. No immediate feedback. Reveal answers at the end."}
+                  {gameMode === 'casual' && isAudioOn && "Questions and audio guide you. Tap to move forward."}
+                  {gameMode === 'casual' && !isAudioOn && "You read the questions. Tap to move forward."}
+                  {gameMode === 'auto' && "Runs automatically for relaxed viewing."}
                 </div>
 
                 <button className="level-btn primary" onClick={startGame} style={{ marginTop: 20, width: '100%' }}>
@@ -424,38 +493,48 @@ export default function GamePage() {
         {/* --- VIEW: GAME --- */}
         {view === 'GAME' && currentQ && (
           <>
-            {isQuestionLoading && (
-              <div className="loading-overlay">
-                <div className="spinner"></div>
-                <p>Loading Question...</p>
-              </div>
-            )}
-
             {/* Audio Player - Auto plays when question loads. TODO: Use selected language */}
-            {!isQuestionLoading && currentQ.audioUrls?.en && (
+            {currentQ.audioUrls?.en && (
               <audio 
                 ref={audioRef}
                 key={currentQ.id} 
                 src={currentQ.audioUrls.en} 
                 autoPlay 
                 muted={!isAudioOn}
+                onEnded={runAutoSequence}
                 style={{ display: 'none' }} 
               />
             )}
-            <section id="content" className={isLandscape ? 'landscape' : 'portrait'} style={{ opacity: isQuestionLoading ? 0 : 1 }}>
+            <section id="content" className={isLandscape ? 'landscape' : 'portrait'}>
               {/* Image */}
               <div id="image-card">
-                {displayImage ? (
+                {/* Active Question Image */}
+                {currentQ.imageUrl && (
                   <>
-                    <img id="trivia-img" key={currentQ.id} src={displayImage} alt="Trivia image" />
-                    {displayImage === currentQ.imageUrl && currentQ.imageMeta?.photographer && (
+                    <img 
+                      id="trivia-img" 
+                      key={currentQ.id} 
+                      src={currentQ.imageUrl} 
+                      alt="Trivia image" 
+                      onLoad={() => setImageLoaded(true)}
+                      style={{
+                        position: 'absolute',
+                        top: 0, left: 0,
+                        opacity: imageLoaded ? 1 : 0,
+                        zIndex: 1
+                      }}
+                    />
+                    {imageLoaded && currentQ.imageMeta?.photographer && (
                       <div className="photo-credit">
                         Photo: {currentQ.imageMeta.photographer}
                       </div>
                     )}
                   </>
-                ) : (
-                  <div className="no-game-img">Trivia Time</div>
+                )}
+                
+                {/* Fallback Text */}
+                {!currentQ.imageUrl && (
+                  <div className="no-game-img" style={{ position: 'relative', zIndex: 1 }}>Trivia Time</div>
                 )}
               </div>
 
@@ -467,26 +546,40 @@ export default function GamePage() {
 
                 <div id="answers">
                   {shuffledAnswers.map((ans, idx) => {
+                    const isSelected = answerState.selectedIdx === idx;
+                    const showResult = answerState.locked && gameMode !== 'stealth';
+                    
                     let statusClass = '';
-                    if (answerState.locked) {
-                      if (gameMode === 'stealth') {
-                        if (answerState.selectedIdx === idx) statusClass = 'selected-stealth';
+                    let badgeContent: React.ReactNode = String.fromCharCode(65 + idx);
+                    let labelText: React.ReactNode = ans.text;
+
+                    if (showResult) {
+                      if (ans.isCorrect) {
+                        statusClass = answerState.isCorrect ? 'correct' : 'correct-revealed';
+                        badgeContent = <span className="material-icons-round">check</span>;
+                      } else if (isSelected) {
+                        statusClass = 'wrong-selected';
+                        badgeContent = <span className="material-icons-round">close</span>;
+                        labelText = <><span style={{ color: 'white' }}>Nice Try!</span> {ans.text}</>;
                       } else {
-                        if (ans.isCorrect) statusClass = 'correct';
-                        else if (answerState.selectedIdx === idx) statusClass = 'wrong';
+                        statusClass = 'wrong';
                       }
+                    }
+                    
+                    if (answerState.locked && gameMode === 'stealth' && isSelected) {
+                      statusClass = 'selected-stealth';
                     }
 
                     return (
                       <button 
                         key={idx} 
                         id={`btn-answer-${idx}`}
-                        className={`ans ${statusClass} ${answerState.locked ? 'locked' : ''}`}
+                        className={`ans ${statusClass} ${answerState.locked ? 'locked' : ''} ${autoHighlight ? 'auto-highlight' : ''}`}
                         onClick={() => handleAnswer(idx, ans.isCorrect)}
-                        disabled={gameMode === 'stealth'}
+                        disabled={gameMode === 'stealth' || gameMode === 'auto'}
                       >
-                        <div className="badge">{String.fromCharCode(65 + idx)}</div>
-                        <div className="ans-label">{ans.text}</div>
+                        <div className="badge">{badgeContent}</div>
+                        <div className="ans-label">{labelText}</div>
                       </button>
                     );
                   })}
@@ -496,40 +589,53 @@ export default function GamePage() {
 
             {/* Bottom Bar */}
             <footer id="bottombar">
-              <div className="bar-item lit">
-                <span className="material-icons-round">quiz</span>
-                <span id="q-counter">{currentIndex + 1} / {gameQuestions.length}</span>
+              <div className="bar-info">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 33.14 24.55" width="33" height="24" style={{ color: 'var(--teal)', height: '24px', width: 'auto' }}>
+                  <path id="sparkle" fill="#66e0e0" d="M6.04,12.08l-.91-1.67c-.8-1.46-1.99-2.66-3.46-3.46l-1.67-.91,1.67-.91c1.46-.8,2.66-1.99,3.46-3.46l.91-1.67,.91,1.67c.8,1.46,1.99,2.66,3.46,3.46l1.67,.91-1.67,.91c-1.46,.8-2.66,1.99-3.46,3.46l-.91,1.67ZM3.55,6.04c.97,.68,1.81,1.53,2.49,2.49,.68-.97,1.53-1.81,2.49-2.49-.97-.68-1.81-1.53-2.49-2.49-.68,.97-1.53,1.81-2.49,2.49Z" />
+                  <g id="text" fill="white">
+                    <path d="M16.77,8.35c-.32-.04-.64-.07-.97-.07-4.2,0-7.61,3.41-7.61,7.61v8.32h2.62V15.89c0-2.76,2.24-5,5-5,.33,0,.66,.03,.97,.1v-2.64Z" />
+                    <path d="M19.96,17.34c.4,2.9,2.74,4.67,6.28,4.67,2.3,0,4.31-.73,5.78-2.14h.13v2.87c-1.4,1.14-3.54,1.8-5.98,1.8-5.51,0-9.08-3.24-9.08-8.15s3.37-8.15,8.15-8.15,7.91,2.97,7.91,7.51v1.57h-13.19Zm0-2.37h10.55c-.4-2.54-2.4-4.17-5.24-4.17-2.67,0-4.77,1.67-5.31,4.17Z" />
+                  </g>
+                </svg>
+                <div className="bar-sep"></div>
+                <div className="bar-item lit">
+                  <span className="material-icons-round">list_alt</span>
+                  <span id="q-counter">{currentIndex + 1} / {gameQuestions.length}</span>
+                </div>
+
+                {gameMode !== 'stealth' && (
+                  <>
+                    <div className="bar-sep"></div>
+                    <div className="bar-item lit">
+                      <span className="material-icons-round">star</span>
+                      <span id="score-val">Score: {score}</span>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div className="bar-spacer"></div>
-
-              {gameMode !== 'stealth' && (
-                <div className="bar-item lit">
-                  <span className="material-icons-round">star</span>
-                  <span id="score-val">Score: {score}</span>
-                </div>
-              )}
-
-              <div className="bar-sep"></div>
-
               <div className="bar-tools">
-                <button 
-                  className="bar-icon-btn" 
-                  onClick={() => {
-                    if (audioRef.current) {
-                      audioRef.current.currentTime = 0;
-                      audioRef.current.play().catch(e => console.error(e));
-                    }
-                  }}
-                  disabled={!isAudioOn || !currentQ.audioUrls?.en}
-                  style={{ opacity: (isAudioOn && currentQ.audioUrls?.en) ? 1 : 0.3 }}
-                >
-                  <span className="material-icons-round">replay</span>
-                </button>
+                {isAudioOn && (
+                  <button 
+                    className="action-btn outline" 
+                    onClick={() => {
+                      if (audioRef.current) {
+                        audioRef.current.currentTime = 0;
+                        audioRef.current.play().catch(e => console.error(e));
+                      }
+                    }}
+                    disabled={!currentQ.audioUrls?.en}
+                    style={{ opacity: currentQ.audioUrls?.en ? 1 : 0.3 }}
+                  >
+                    <span className="material-icons-round">replay</span>
+                    <span>Replay</span>
+                  </button>
+                )}
 
                 {gameMode !== 'auto' && (
-                  <button className="next-btn" onClick={handleNext}>
-                    Next <span className="material-icons-round" style={{ fontSize: '1.2em' }}>arrow_forward</span>
+                  <button className="action-btn primary" onClick={handleNext}>
+                    <span>Next</span>
+                    <span className="material-icons-round" style={{ fontSize: '1.2em' }}>arrow_forward</span>
                   </button>
                 )}
               </div>
@@ -570,6 +676,15 @@ export default function GamePage() {
                   ))}
                 </div>
                 <button className="level-btn primary" onClick={handleRestart} style={{ marginTop: 30 }}>Play Again</button>
+              </div>
+            ) : gameMode === 'auto' ? (
+              <div className="result-card">
+                <div className="result-icon">✨</div>
+                <h1 className="menu-title">Game Over</h1>
+                <p className="result-msg">
+                  I hope you got everything right!
+                </p>
+                <button className="level-btn primary" onClick={handleRestart}>Play Again</button>
               </div>
             ) : (
               <div className="result-card">
@@ -621,7 +736,7 @@ export default function GamePage() {
           width: 1280px;
           height: 720px;
           display: grid;
-          grid-template-rows: 96px 1fr;
+          grid-template-rows: 1fr;
           background: var(--black);
           font-family: 'Poppins', sans-serif;
           font-weight: 600;
@@ -634,16 +749,7 @@ export default function GamePage() {
           transition: opacity 0.2s;
         }
         #shell.view-game {
-          grid-template-rows: 96px 1fr 72px;
-        }
-
-        /* ── Top nav ── */
-        #topnav {
-          background: url('topNav.png') no-repeat center center;
-          background-size: cover;
-          display: flex;
-          align-items: center;
-          padding: 0 24px;
+          grid-template-rows: 1fr 6rem;
         }
         .nav-back {
           background: transparent;
@@ -868,6 +974,7 @@ export default function GamePage() {
           font-weight: 600;
           color: var(--white);
           line-height: 1.35;
+          padding:16px 0 16px 0;
         }
 
         #answers {
@@ -924,6 +1031,10 @@ export default function GamePage() {
           font-size: 2rem;
           font-weight: 600;
           line-height: 1.25;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
         }
 
         /* States */
@@ -937,6 +1048,33 @@ export default function GamePage() {
           border-color: rgba(0,0,0,0.25);
           color: var(--black);
         }
+        
+        /* Correct Answer Revealed (when user picked wrong) */
+        .ans.correct-revealed {
+          border: 3px solid #66e0e0;
+          background: var(--grey);
+          color: #66e0e0;
+          box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+        .ans.correct-revealed .badge {
+          border-color: #66e0e0;
+          color: #66e0e0;
+          background: rgba(102, 224, 224, 0.1);
+        }
+
+        /* Selected Wrong Answer */
+        .ans.wrong-selected {
+          border: 2px solid #D58A94;
+          background: var(--grey);
+          color: #D58A94;
+          box-shadow: 0 4px 0 rgba(0,0,0,0.5);
+        }
+        .ans.wrong-selected .badge {
+          border-color: #D58A94;
+          color: #D58A94;
+          background: rgba(255, 107, 107, 0.1);
+        }
+
         .ans.wrong {
           background: rgba(255,255,255,0.04);
           box-shadow: 0 4px 0 rgba(0,0,0,0.3);
@@ -946,6 +1084,11 @@ export default function GamePage() {
         .ans.selected-stealth { background: var(--white); color: var(--black); box-shadow: 0 4px 0 rgba(255,255,255,0.5); }
         .ans:disabled { cursor: default; opacity: 1; }
         .ans:disabled:hover { transform: none; background: var(--grey); box-shadow: 0 4px 0 rgba(0,0,0,0.6); }
+
+        .ans.auto-highlight {
+          border: 2px solid #66e0e0;
+          box-shadow: 0 0 15px rgba(102, 224, 224, 0.4);
+        }
 
         @keyframes pop {
           0%   { transform: scale(1); }
@@ -962,13 +1105,18 @@ export default function GamePage() {
           padding: 0 24px;
           justify-content: space-between;
           gap: 16px;
-          height: 72px;
+          height: 6rem;
+        }
+        .bar-info {
+          display: flex;
+          align-items: center;
+          gap: 24px;
         }
         .bar-item {
           display: flex;
           align-items: center;
           gap: 7px;
-          font-size: 1rem;
+          font-size: 1.5rem;
           font-weight: 600;
           color: rgba(255,255,255,0.6);
           white-space: nowrap;
@@ -978,72 +1126,59 @@ export default function GamePage() {
           color: var(--teal);
         }
         .bar-item.lit { color: var(--white); }
-        .bar-sep { width: 1px; height: 26px; background: #2a2a2a; flex-shrink: 0; }
-        .bar-spacer { flex: 0; }
+        .bar-sep { width: 1px; height: 40px; background: #2a2a2a; flex-shrink: 0; }
         .bar-tools { display: flex; align-items: center; gap: 16px; }
 
-        .prog-track {
-          width: 150px; height: 5px;
-          background: #2a2a2a;
-          border-radius: 3px;
-          overflow: hidden;
-        }
-        .prog-fill {
-          height: 100%;
-          background: var(--teal);
-          border-radius: 3px;
-          transition: width .6s ease;
-        }
-        .loader { color: #666; font-size: 1.5rem; text-align: center; margin-top: 50px; }
-        .empty-msg { color: #666; text-align: center; margin-top: 50px; width: 100%; grid-column: 1/-1; }
-
-        .audio-toggle {
-          background: rgba(255,255,255,0.1);
-          border: 1px solid rgba(255,255,255,0.2);
-          color: var(--white);
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          cursor: pointer;
+        .action-btn {
           display: flex;
           align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-        .audio-toggle:hover {
-          background: rgba(255,255,255,0.2);
-          border-color: var(--white);
-        }
-        .bar-icon-btn {
-          background: transparent;
-          border: none;
-          color: var(--teal);
-          cursor: pointer;
-          padding: 8px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: background 0.2s;
-        }
-        .bar-icon-btn:hover {
-          background: rgba(102, 224, 224, 0.1);
-        }
-        .next-btn {
-          background: var(--teal);
-          color: var(--black);
-          border: none;
-          padding: 8px 16px;
-          border-radius: 8px;
+          gap: 8px;
+          padding: 10px 20px;
+          border-radius: 12px;
           font-family: inherit;
           font-weight: 700;
+          font-size: 1.2rem;
           cursor: pointer;
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          transition: transform 0.1s;
+          transition: all 0.2s;
+          border: 2px solid transparent;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
-        .next-btn:active { transform: scale(0.96); }
+        
+        .action-btn.primary {
+          background: var(--teal);
+          color: var(--black);
+          border-color: var(--teal);
+        }
+        .action-btn.primary:hover {
+          background: #5cdcdc;
+          border-color: #5cdcdc;
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(102, 224, 224, 0.3);
+        }
+        .action-btn.primary:active { transform: translateY(0); }
+
+        .action-btn.outline {
+          background: transparent;
+          border: 2px var(--white) transparent;
+          color: var(--white);
+          
+        }
+        .action-btn.outline:hover {
+          background: rgba(102, 224, 224, 0.1);
+          transform: translateY(-2px);
+        }
+        .action-btn.outline:active { transform: translateY(0); }
+        .action-btn.outline:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+          border-color: #444;
+          color: #666;
+          transform: none;
+        }
+
+        .loader { color: #666; font-size: 1.5rem; text-align: center; margin-top: 50px; }
+        .empty-msg { color: #666; text-align: center; margin-top: 50px; width: 100%; grid-column: 1/-1; }
 
         /* Lobby Styles */
         .level-view-container {

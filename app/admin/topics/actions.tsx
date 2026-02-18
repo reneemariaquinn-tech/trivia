@@ -73,6 +73,29 @@ export async function upsertCategory(id: string | null, formData: FormData) {
     const storageRef = ref(storage, `topic-covers/${Date.now()}-${imageFile.name}`);
     await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
+  } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
+    // Handle external image (AI Search result) - Download and save to Storage
+    try {
+      const response = await fetch(imageUrl);
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        const resizedBuffer = await sharp(buffer)
+          .resize({ width: 1600, height: 1000, fit: 'inside' })
+          .toBuffer();
+          
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        let ext = contentType.split('/')[1] || 'jpg';
+        if (ext === 'jpeg') ext = 'jpg';
+        
+        const storageRef = ref(storage, `topic-covers/imported/${Date.now()}.${ext}`);
+        await uploadBytes(storageRef, resizedBuffer, { contentType });
+        imageUrl = await getDownloadURL(storageRef);
+      }
+    } catch (error) {
+      console.error("Error importing external category image:", error);
+    }
   }
 
   // 3. Prepare Topic-specific data
@@ -151,7 +174,7 @@ export async function deleteQuiz(id: string, topicId?: string) {
 
 // app/admin/topics/actions.ts
 
-export async function upsertQuiz(id: string | null, topicId: string, formData: FormData) {
+export async function upsertQuiz(id: string | null, topicId: string | null, formData: FormData) {
   // 1. Extract values from FormData
   // We look for 'name' because that's likely what your form input is named
   const title = (formData.get('name') || formData.get('title')) as string;
@@ -168,6 +191,29 @@ export async function upsertQuiz(id: string | null, topicId: string, formData: F
     const storageRef = ref(storage, `quiz-covers/${Date.now()}-${imageFile.name}`);
     await uploadBytes(storageRef, resizedBuffer);
     imageUrl = await getDownloadURL(storageRef);
+  } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
+    // Handle external image (AI Search result) - Download and save to Storage
+    try {
+      const response = await fetch(imageUrl);
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        const resizedBuffer = await sharp(buffer)
+          .resize({ width: 1600, height: 1000, fit: 'inside' })
+          .toBuffer();
+          
+        const contentType = response.headers.get('content-type') || 'image/jpeg';
+        let ext = contentType.split('/')[1] || 'jpg';
+        if (ext === 'jpeg') ext = 'jpg';
+        
+        const storageRef = ref(storage, `quiz-covers/imported/${Date.now()}.${ext}`);
+        await uploadBytes(storageRef, resizedBuffer, { contentType });
+        imageUrl = await getDownloadURL(storageRef);
+      }
+    } catch (error) {
+      console.error("Error importing external quiz image:", error);
+    }
   }
 
   // 3. Prepare the standardized data object
@@ -181,12 +227,13 @@ export async function upsertQuiz(id: string | null, topicId: string, formData: F
   // 4. Save to Firestore
   if (id && id !== 'null') {
     const quizRef = doc(db, 'quizzes', id);
-    await updateDoc(quizRef, {
-      ...commonData,
-      // arrayUnion prevents duplicate IDs if the quiz is already linked
-      topicIds: arrayUnion(topicId) 
-    });
+    const updateData: any = { ...commonData };
+    if (topicId) {
+      updateData.topicIds = arrayUnion(topicId);
+    }
+    await updateDoc(quizRef, updateData);
   } else {
+    if (!topicId) throw new Error("Topic ID is required for new quizzes");
     await addDoc(collection(db, 'quizzes'), {
       ...commonData,
       createdAt: serverTimestamp(),
@@ -203,7 +250,17 @@ export async function getQuestions(quizId: string) {
   const snapshot = await getDocs(q);
   
   const quizDoc = await getDoc(doc(db, 'quizzes', quizId));
-  const quizTitle = quizDoc.exists() ? quizDoc.data().title : 'Unknown Quiz';
+  let quiz = null;
+
+  if (quizDoc.exists()) {
+    const data = quizDoc.data();
+    quiz = {
+      id: quizDoc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.().toISOString() || null,
+      updatedAt: data.updatedAt?.toDate?.().toISOString() || null,
+    };
+  }
 
   return { 
     questions: snapshot.docs.map(doc => {
@@ -237,7 +294,7 @@ export async function getQuestions(quizId: string) {
         updatedAt: data.updatedAt?.toDate?.().toISOString() || null,
       };
     }), 
-    quizTitle 
+    quiz 
   };
 }
 
@@ -272,6 +329,7 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   const imageFile = formData.get('imageFile') as File;
   let imageUrl = formData.get('existingImageUrl') as string;
   let isNewUpload = false;
+  let finalOrientation = orientation || 'landscape';
 
   // --- AUDIO HANDLING ---
   let audioUrls: any = {};
@@ -295,7 +353,13 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
 
   if (imageFile && imageFile.size > 0) {
     const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const resizedBuffer = await sharp(buffer)
+    const pipeline = sharp(buffer).rotate();
+    const metadata = await pipeline.metadata();
+    if (metadata.width && metadata.height) {
+      finalOrientation = metadata.width >= metadata.height ? 'landscape' : 'portrait';
+    }
+
+    const resizedBuffer = await pipeline
       .resize({ width: 1600, height: 1000, fit: 'inside' })
       .toBuffer();
 
@@ -311,7 +375,13 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
 
-        const resizedBuffer = await sharp(buffer)
+        const pipeline = sharp(buffer).rotate();
+        const metadata = await pipeline.metadata();
+        if (metadata.width && metadata.height) {
+          finalOrientation = metadata.width >= metadata.height ? 'landscape' : 'portrait';
+        }
+
+        const resizedBuffer = await pipeline
           .resize({ width: 1600, height: 1000, fit: 'inside' })
           .toBuffer();
         
@@ -362,7 +432,7 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   // 2. If image removed, clear all meta
   if (isNewUpload) {
     questionData.imageMeta = {
-      orientation: orientation || 'landscape',
+      orientation: finalOrientation,
       photographer: photographer || null,
       source: imageSource || null
     };
@@ -470,7 +540,7 @@ export async function autoAssignImage(questionId: string, searchQuery: string) {
       width: photo.width,
       height: photo.height,
       aspectRatio: ratio,
-      orientation: ratio > 1.1 ? 'landscape' : 'portrait',
+      orientation: ratio >= 1.0 ? 'landscape' : 'portrait',
       updatedAt: now
   };
 
@@ -503,7 +573,7 @@ export async function migrateQuestionMetadata() {
     if (data.imageMeta?.width && !data.imageMeta.orientation) {
       const ratio = parseFloat((data.imageMeta.width / data.imageMeta.height).toFixed(2));
       batch.update(docSnap.ref, { 
-        'imageMeta.orientation': ratio > 1.1 ? 'landscape' : 'portrait',
+        'imageMeta.orientation': ratio >= 1.0 ? 'landscape' : 'portrait',
         'imageMeta.aspectRatio': ratio 
       });
       count++;
