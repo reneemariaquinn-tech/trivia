@@ -293,55 +293,46 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   }
 
   return (
-    <div className="p-10 max-w-7xl mx-auto bg-slate-50 min-h-screen pb-32 text-slate-900 font-sans">
+    <div className="p-10 max-w-7xl mx-auto pb-32 text-slate-900 font-sans">
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
 
-        <a href="/admin/topics" className="text-indigo-600 hover:text-indigo-800 text-xs font-bold uppercase tracking-widest flex items-center gap-1 transition-colors">
-          ← Back
-        </a>
       <div className="flex justify-between items-end mb-8">
-        <div>
+        <div><h4 className="text-sm uppercase text-slate-500 font-bold tracking-wide">Questions for:</h4>
           <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">{quiz?.title || 'Loading...'}</h1>
         </div>
         <div className="flex gap-3">
-          <button 
-            onClick={() => setIsQuizDrawerOpen(true)}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-full font-bold shadow-sm transition-all flex items-center gap-2"
-          >
-            <span className="material-symbols-rounded">edit</span> Edit Details
-          </button>
           <button 
             onClick={() => {
               // TODO: Paste the full URL from 'firebase functions:list' here
               const functionUrl = 'https://us-central1-trivia-34f8c.cloudfunctions.net/exportGameZip';
               window.open(`${functionUrl}?quizId=${quizId}&t=${Date.now()}`, '_blank');
             }}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-full font-bold shadow-sm transition-all flex items-center gap-2"
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"
           >
             <span className="material-symbols-rounded">folder_zip</span> Export ZIP
           </button>
-          <button onClick={() => setIsBulkUploadOpen(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-full font-bold shadow-sm transition-all">
+          <button onClick={() => setIsBulkUploadOpen(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2">
             <span className="material-symbols-rounded">content_paste_go</span> Bulk Upload
           </button>
-          <button onClick={() => { setEditingQuestion(null); setManualOrientation('landscape'); setIsDrawerOpen(true); }} className="bg-indigo-600 text-white px-6 py-2 rounded-full font-bold shadow-md hover:bg-indigo-700 transition-all">+ Add Question</button>
+          <button onClick={() => { setEditingQuestion(null); setManualOrientation('landscape'); setIsDrawerOpen(true); }} className="bg-[#5233a6] text-white px-6 py-2 rounded-lg font-bold shadow-md hover:bg-[#3e2680] transition-all">+ Add Question</button>
         </div>
       </div>
 
       {/* FILTERS */}
       <div className="sticky top-2 z-30 flex flex-wrap gap-4 mb-6 items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-slate-200">
         <div className="flex gap-4 items-center">
-          <span className="text-xs font-bold uppercase text-slate-500">Filters:</span>
+          <span className="text-sm font-bold uppercase text-slate-500">Filters:</span>
           <input 
             type="text" 
             placeholder="Search questions..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 outline-none w-48"
+            className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5233a6] outline-none w-48"
           />
           <select 
               value={filterLevel} 
               onChange={(e) => setFilterLevel(e.target.value)}
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-[#5233a6] outline-none"
           >
               <option value="all">All Levels</option>
               <option value="easy">Easy</option>
@@ -352,7 +343,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
           <select 
               value={filterImage} 
               onChange={(e) => setFilterImage(e.target.value)}
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-[#5233a6] outline-none"
           >
               <option value="all">All Images</option>
               <option value="has-image">With Image</option>
@@ -362,7 +353,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
           <select 
               value={filterAudio} 
               onChange={(e) => setFilterAudio(e.target.value)}
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-[#5233a6] outline-none"
           >
               <option value="all">All Audio</option>
               <option value="has-audio">With Audio</option>
@@ -379,7 +370,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               onChange={(e) => handleBulkLevelChange(e.target.value)}
               disabled={isSaving}
               value=""
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-[#5233a6] outline-none"
             >
               <option value="" disabled>Set Level</option>
               <option value="easy">Easy</option>
@@ -419,7 +410,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
           <thead>
             <tr className="bg-slate-800 text-white text-sm border-b border-slate-200">
               <th className="p-5 w-12 first:rounded-tl-2xl">
-                <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="rounded text-indigo-600 focus:ring-0 cursor-pointer bg-white border-slate-300" />
+                <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="rounded text-[#5233a6] focus:ring-0 cursor-pointer bg-white border-slate-300" />
               </th>
               <th className="p-5 w-20">Image</th>
               <th className="p-5 w-16 text-center">Audio</th>
@@ -433,7 +424,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             {filteredQuestions.map((q) => (
               <tr key={q.id} className="hover:bg-slate-50 transition-colors">
                 <td className="p-5">
-                   <input type="checkbox" checked={selectedIds.includes(q.id)} onChange={() => toggleSelectOne(q.id)} className="rounded text-indigo-600 focus:ring-0 cursor-pointer bg-white border-slate-300" />
+                   <input type="checkbox" checked={selectedIds.includes(q.id)} onChange={() => toggleSelectOne(q.id)} className="rounded text-[#5233a6] focus:ring-0 cursor-pointer bg-white border-slate-300" />
                 </td>
                 <td className="p-5">
                   {q.imageUrl ? (
@@ -444,7 +435,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                 </td>
                 <td className="p-5 text-center">
                   {(q.audioUrl || (q.audioUrls && Object.keys(q.audioUrls).length > 0)) && (
-                    <span className="material-symbols-rounded text-indigo-600">mic</span>
+                    <span className="material-symbols-rounded text-[#5233a6]">mic</span>
                   )}
                 </td>
                 <td className="p-5 font-medium max-w-xs truncate text-slate-900">{q.text}</td>
@@ -453,15 +444,15 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                 <td className="p-5 text-right pr-10 relative">
                   <button 
                     onClick={() => setActiveMenu(activeMenu === q.id ? null : q.id)}
-                    className="w-10 h-10 inline-flex items-center justify-center rounded-full hover:bg-slate-100 hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all font-bold text-xl"
+                    className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-slate-100 hover:shadow-sm text-slate-400 hover:text-[#5233a6] transition-all font-bold text-xl"
                   >
                     ⋮
                   </button>
                   {activeMenu === q.id && (
-                    <div className="absolute right-10 top-14 w-32 bg-white rounded-xl shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100 text-left">
+                    <div className="absolute right-10 top-14 w-32 bg-white rounded-lg shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100 text-left">
                       <button 
                         onClick={() => { setEditingQuestion(q); setManualOrientation(q.imageMeta?.orientation || 'landscape'); setIsDrawerOpen(true); setActiveMenu(null); }}
-                        className="w-full px-4 py-2 text-sm font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors text-left"
+                        className="w-full px-4 py-2 text-sm font-bold text-slate-600 hover:bg-[#5233a6]/10 hover:text-[#5233a6] transition-colors text-left"
                       >
                         Edit
                       </button>
@@ -514,13 +505,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Question Image</label>
               {editingQuestion?.imageUrl ? (
-                <div className="relative w-full h-48 group rounded-xl overflow-hidden border border-slate-200">
+                <div className="relative w-full h-48 group rounded-lg overflow-hidden border border-slate-200">
                   <img src={editingQuestion.imageUrl} className="w-full h-full object-cover" alt="Question" />
                   <div className="absolute top-2 right-2 flex gap-2">
                     <button 
                       type="button"
                       onClick={() => handleSingleAiSearch('question')}
-                      className="bg-white/90 text-indigo-600 p-2 rounded-full shadow-md hover:bg-white transition-all"
+                      className="bg-white/90 text-[#5233a6] p-2 rounded-full shadow-md hover:bg-white transition-all"
                       title="Find Replacement (AI)"
                     >
                       <span>✨</span>
@@ -542,13 +533,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                     name="imageFile" 
                     accept="image/*" 
                     onChange={handleFileSelect}
-                    className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 transition-all" 
+                    className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#5233a6]/10 file:text-[#5233a6] hover:file:bg-[#5233a6]/20 transition-all" 
                   />
                   
                   <div className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
                     <span className="text-xs font-bold text-slate-500 uppercase">Layout:</span>
-                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'landscape'} onChange={() => setManualOrientation('landscape')} className="text-indigo-600 focus:ring-indigo-500 bg-white border-slate-300" /> Landscape</label>
-                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'portrait'} onChange={() => setManualOrientation('portrait')} className="text-indigo-600 focus:ring-indigo-500 bg-white border-slate-300" /> Portrait</label>
+                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'landscape'} onChange={() => setManualOrientation('landscape')} className="text-[#5233a6] focus:ring-[#5233a6] bg-white border-slate-300" /> Landscape</label>
+                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1"><input type="radio" name="orientation_selector" checked={manualOrientation === 'portrait'} onChange={() => setManualOrientation('portrait')} className="text-[#5233a6] focus:ring-[#5233a6] bg-white border-slate-300" /> Portrait</label>
                   </div>
 
                   <>
@@ -556,7 +547,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                     <button 
                       type="button"
                       onClick={() => handleSingleAiSearch('question')}
-                      className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                      className="w-full py-3 bg-[#5233a6]/10 text-[#5233a6] rounded-lg text-xs font-bold hover:bg-[#5233a6]/20 transition-all flex items-center justify-center gap-2"
                     >
                       <span>✨</span> Find Image with AI
                     </button>
@@ -567,13 +558,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Question Text</label>
-              <textarea name="text" defaultValue={editingQuestion?.text} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none placeholder-slate-400" rows={3} />
+              <textarea name="text" defaultValue={editingQuestion?.text} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none placeholder-slate-400" rows={3} />
             </div>
 
             {/* Audio Section */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Audio (English)</label>
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
                 {(editingQuestion?.audioUrls?.en || editingQuestion?.audioUrl) ? (
                   <audio controls src={editingQuestion.audioUrls?.en || editingQuestion.audioUrl} className="h-10 w-full" />
                 ) : (
@@ -584,7 +575,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                   type="button"
                   onClick={handleGenerateAudio}
                   disabled={isGeneratingAudio || !editingQuestion?.id}
-                  className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors disabled:opacity-50 whitespace-nowrap w-full sm:w-auto"
+                  className="px-4 py-2 bg-[#5233a6]/10 text-[#5233a6] rounded-lg text-xs font-bold hover:bg-[#5233a6]/20 transition-colors disabled:opacity-50 whitespace-nowrap w-full sm:w-auto"
                 >
                   {isGeneratingAudio ? 'Generating...' : ((editingQuestion?.audioUrls?.en || editingQuestion?.audioUrl) ? 'Regenerate' : 'Generate Audio')}
                 </button>
@@ -594,7 +585,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Difficulty</label>
-              <select name="difficulty" defaultValue={editingQuestion?.difficulty || 'medium'} className="w-full p-3 bg-slate-50 text-slate-900 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none">
+              <select name="difficulty" defaultValue={editingQuestion?.difficulty || 'medium'} className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none">
                 <option value="easy">Easy</option>
                 <option value="medium">Medium</option>
                 <option value="hard">Hard</option>
@@ -605,13 +596,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Answers & Correct Option</label>
               <div className="space-y-3">
                 {[0, 1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                  <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
                     <input 
                       type="radio" 
                       name="correctIndex" 
                       value={i} 
                       defaultChecked={editingQuestion ? editingQuestion.answers?.[i]?.isCorrect : i === 0}
-                      className="w-5 h-5 text-indigo-600 border-slate-300 bg-white focus:ring-indigo-500"
+                      className="w-5 h-5 text-[#5233a6] border-slate-300 bg-white focus:ring-[#5233a6]"
                     />
                     <input name={`opt${i}`} defaultValue={editingQuestion?.answers?.[i]?.text} placeholder={`Answer Option ${i + 1}`} className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400" required />
                   </div>
@@ -619,7 +610,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               </div>
             </div>
 
-            <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
+            <button type="submit" disabled={isSaving} className="w-full bg-[#5233a6] text-white py-4 rounded-lg font-bold shadow-lg hover:bg-[#3e2680] transition-all">
               {isSaving ? 'Saving...' : 'Save Question'}
             </button>
             <button type="button" onClick={() => setIsDrawerOpen(false)} className="w-full text-slate-400 font-bold py-2 hover:text-slate-600 transition-colors">Close</button>
@@ -628,7 +619,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               <button 
                 type="button" 
                 onClick={() => { setIsDrawerOpen(false); setDeleteConfig({ isOpen: true, ids: [editingQuestion.id] }); }}
-                className="w-full text-red-500 font-bold py-2 hover:bg-red-50 rounded-xl transition-colors mt-2"
+                className="w-full text-red-500 font-bold py-2 hover:bg-red-50 rounded-lg transition-colors mt-2"
               >
                 Delete Question
               </button>
@@ -663,13 +654,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Cover Image</label>
               {quiz?.imageUrl ? (
-                <div className="relative w-full h-48 group rounded-xl overflow-hidden border border-slate-200">
+                <div className="relative w-full h-48 group rounded-lg overflow-hidden border border-slate-200">
                   <img src={quiz.imageUrl} className="w-full h-full object-cover" alt="Cover" />
                   <div className="absolute top-2 right-2 flex gap-2">
                     <button 
                       type="button"
                       onClick={() => handleSingleAiSearch('quiz')}
-                      className="bg-white/90 text-indigo-600 p-2 rounded-full shadow-md hover:bg-white transition-all"
+                      className="bg-white/90 text-[#5233a6] p-2 rounded-full shadow-md hover:bg-white transition-all"
                       title="Find Replacement (AI)"
                     >
                       <span>✨</span>
@@ -691,7 +682,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                   <button 
                     type="button"
                     onClick={() => handleSingleAiSearch('quiz')}
-                    className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-3 bg-[#5233a6]/10 text-[#5233a6] rounded-lg text-xs font-bold hover:bg-[#5233a6]/20 transition-all flex items-center justify-center gap-2"
                   >
                     <span>✨</span> Find Cover Image
                   </button>
@@ -701,10 +692,10 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Title</label>
-              <input name="title" defaultValue={quiz?.title} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-xl border-0 focus:ring-2 focus:ring-indigo-500 outline-none placeholder-slate-400" />
+              <input name="title" defaultValue={quiz?.title} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none placeholder-slate-400" />
             </div>
 
-            <button type="submit" disabled={isSaving} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-indigo-700 transition-all">
+            <button type="submit" disabled={isSaving} className="w-full bg-[#5233a6] text-white py-4 rounded-lg font-bold shadow-lg hover:bg-[#3e2680] transition-all">
               {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </form>
@@ -732,14 +723,14 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               value={csvContent}
               onChange={(e) => setCsvContent(e.target.value)}
               placeholder="Paste your CSV data here..."
-              className="w-full h-64 p-4 bg-slate-50 border-2 border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-indigo-500 outline-none mb-6 resize-none text-slate-900 placeholder-slate-400"
+              className="w-full h-64 p-4 bg-slate-50 border-2 border-slate-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-[#5233a6] outline-none mb-6 resize-none text-slate-900 placeholder-slate-400"
             />
 
             <div className="flex gap-3">
               <button 
                 onClick={handleBulkUpload}
                 disabled={isSaving || !csvContent}
-                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 bg-[#5233a6] hover:bg-[#3e2680] text-white py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isSaving ? 'Uploading...' : 'Process & Upload'}
               </button>
@@ -760,14 +751,14 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               <input 
                 value={aiSearchModal.query}
                 onChange={(e) => setAiSearchModal({ ...aiSearchModal, query: e.target.value })}
-                className="flex-1 bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 placeholder-slate-400"
+                className="flex-1 bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6] text-slate-900 placeholder-slate-400"
                 placeholder="Search query..."
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
               />
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
-                className="bg-indigo-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-indigo-700"
+                className="bg-[#5233a6] text-white px-6 rounded-lg font-bold text-sm hover:bg-[#3e2680]"
               >
                 Search
               </button>
@@ -776,13 +767,13 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <div className="flex gap-2 mb-6 border-b border-slate-100 pb-2">
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, 'pexels')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'pexels' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'pexels' ? 'bg-[#5233a6]/20 text-[#5233a6]' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 Pexels
               </button>
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, 'wikimedia')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'wikimedia' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'wikimedia' ? 'bg-[#5233a6]/20 text-[#5233a6]' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 Wikicommons
               </button>
@@ -793,7 +784,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             ) : (
               <div className="grid grid-cols-3 gap-4">
                 {aiSearchModal.results.map((img, idx) => (
-                  <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-xl overflow-hidden cursor-pointer hover:ring-4 ring-indigo-500 transition-all">
+                  <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-lg overflow-hidden cursor-pointer hover:ring-4 ring-[#5233a6] transition-all">
                     <img src={img.url} className="w-full h-full object-cover" alt="Result" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-2 truncate opacity-0 group-hover:opacity-100 transition-opacity">
@@ -808,7 +799,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <div className="mt-6 flex justify-end">
               <button 
                 onClick={() => setAiSearchModal(prev => ({ ...prev, isOpen: false }))}
-                className="px-6 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                className="px-6 py-2 bg-slate-100 text-slate-500 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all"
               >
                 Cancel
               </button>

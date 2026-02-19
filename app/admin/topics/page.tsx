@@ -83,7 +83,7 @@ export default function CategoriesPage() {
   }
 
   return (
-    <div className="p-10 max-w-7xl mx-auto bg-slate-50 min-h-screen text-slate-700">
+    <div className="p-10 max-w-7xl mx-auto text-slate-700">
       {/* Search & Header */}
       <div className="flex justify-between items-center mb-10">
         <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Categories</h1>
@@ -91,12 +91,12 @@ export default function CategoriesPage() {
           <input 
             type="text" 
             placeholder="Search..."
-            className="bg-white border-0 shadow-sm rounded-full px-6 py-2 text-sm w-72 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+            className="bg-white border-0 shadow-sm rounded-lg px-6 py-2 text-sm w-72 focus:ring-2 focus:ring-[#5233a6] transition-all outline-none"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <button 
             onClick={() => { setEditingCategory(null); setIsDrawerOpen(true); }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-full text-sm font-bold shadow-md shadow-indigo-200 transition-all"
+            className="bg-[#5233a6] hover:bg-[#3e2680] text-white px-6 py-2 rounded-lg text-sm font-bold shadow-md shadow-[#5233a6]/20 transition-all"
           >
             + Add New
           </button>
@@ -117,16 +117,16 @@ export default function CategoriesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {filtered.map((cat) => (
-              <tr key={cat.id} className="hover:bg-indigo-50/30 transition-colors">
+              <tr key={cat.id} className="hover:bg-[#5233a6]/5 transition-colors">
                 <td className="p-5">
                   {cat.imageUrl ? (
-                    <img src={cat.imageUrl} className="h-12 w-12 rounded-xl object-cover border-2 border-white shadow-sm" />
+                    <img src={cat.imageUrl} className="h-12 w-12 rounded-lg object-cover border-2 border-white shadow-sm" />
                   ) : (
-                    <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase">No Img</div>
+                    <div className="h-12 w-12 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase">No Img</div>
                   )}
                 </td>
                 <td className="p-5 font-bold text-slate-800">
-                  <Link href={`/admin/topics/${cat.id}`} className="hover:text-indigo-600 transition-colors">
+                  <Link href={`/admin/topics/${cat.id}`} className="hover:text-[#5233a6] transition-colors">
                     {cat.name}
                   </Link>
                 </td>
@@ -139,16 +139,16 @@ export default function CategoriesPage() {
                 <td className="p-5 text-right pr-10 relative">
                   <button 
                     onClick={() => setActiveMenu(activeMenu === cat.id ? null : cat.id)}
-                    className="w-10 h-10 inline-flex items-center justify-center rounded-full hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all font-bold text-xl"
+                    className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-[#5233a6] transition-all font-bold text-xl"
                   >
                     ⋮
                   </button>
 
                   {activeMenu === cat.id && (
-                    <div className="absolute right-10 top-14 w-40 bg-white rounded-xl shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100">
+                    <div className="absolute right-10 top-14 w-40 bg-white rounded-lg shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100">
                       <button 
                         onClick={() => { setEditingCategory(cat); setIsDrawerOpen(true); setActiveMenu(null); }}
-                        className="w-full text-left px-4 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600"
+                        className="w-full text-left px-4 py-2 text-xs font-bold text-slate-600 hover:bg-[#5233a6]/10 hover:text-[#5233a6]"
                       >
                         Edit Category
                       </button>
@@ -180,11 +180,11 @@ export default function CategoriesPage() {
                 <input type="hidden" name="existingImageUrl" value={editingCategory?.imageUrl || ''} readOnly />
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Category Name</label>
-                  <input name="name" defaultValue={editingCategory?.name} className="w-full bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" required />
+                  <input name="name" defaultValue={editingCategory?.name} className="w-full bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6]" required />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Description</label>
-                  <textarea name="description" defaultValue={editingCategory?.description} rows={4} className="w-full bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <textarea name="description" defaultValue={editingCategory?.description} rows={4} className="w-full bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Image Asset</label>
@@ -193,7 +193,7 @@ export default function CategoriesPage() {
                       <img 
                         src={editingCategory.imageUrl} 
                         alt="Category cover" 
-                        className="w-full h-full object-cover rounded-xl border-2 border-slate-100 shadow-sm"
+                        className="w-full h-full object-cover rounded-lg border-2 border-slate-100 shadow-sm"
                       />
                       <button
                         type="button"
@@ -206,7 +206,7 @@ export default function CategoriesPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <input type="file" name="imageFile" accept="image/*" className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 transition-all" />
+                      <input type="file" name="imageFile" accept="image/*" className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#5233a6]/10 file:text-[#5233a6] hover:file:bg-[#5233a6]/20 transition-all" />
                       <div className="text-center text-xs text-slate-400 font-bold uppercase">OR</div>
                       <button 
                         type="button"
@@ -214,7 +214,7 @@ export default function CategoriesPage() {
                           setAiSearchModal({ isOpen: true, query: editingCategory?.name || '', results: [], provider: 'pexels', isSearching: false });
                           if (editingCategory?.name) performImageSearch(editingCategory.name, 'pexels');
                         }}
-                        className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-3 bg-[#5233a6]/10 text-[#5233a6] rounded-lg text-xs font-bold hover:bg-[#5233a6]/20 transition-all flex items-center justify-center gap-2"
                       >
                         <span>✨</span> Find Image with AI
                       </button>
@@ -222,8 +222,8 @@ export default function CategoriesPage() {
                   )}
                 </div>
                 <div className="flex gap-4 pt-10">
-                  <button type="submit" className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Save Changes</button>
-                  <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+                  <button type="submit" className="flex-1 bg-[#5233a6] text-white py-3 rounded-lg font-bold text-sm shadow-lg shadow-[#5233a6]/20 hover:bg-[#3e2680] transition-all">Save Changes</button>
+                  <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
                 </div>
              </form>
           </div>
@@ -250,11 +250,11 @@ export default function CategoriesPage() {
                   setIsDeleting(false);
                   setDeleteTarget(null);
                 }}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Yes, Delete'}
               </button>
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
             </div>
           </div>
         </>
@@ -271,14 +271,14 @@ export default function CategoriesPage() {
               <input 
                 value={aiSearchModal.query}
                 onChange={(e) => setAiSearchModal({ ...aiSearchModal, query: e.target.value })}
-                className="flex-1 bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 placeholder-slate-400"
+                className="flex-1 bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6] text-slate-900 placeholder-slate-400"
                 placeholder="Search query..."
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
               />
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
-                className="bg-indigo-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-indigo-700"
+                className="bg-[#5233a6] text-white px-6 rounded-lg font-bold text-sm hover:bg-[#3e2680]"
               >
                 Search
               </button>
@@ -287,13 +287,13 @@ export default function CategoriesPage() {
             <div className="flex gap-2 mb-6 border-b border-slate-100 pb-2">
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, 'pexels')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'pexels' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'pexels' ? 'bg-[#5233a6]/20 text-[#5233a6]' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 Pexels
               </button>
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, 'wikimedia')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'wikimedia' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'wikimedia' ? 'bg-[#5233a6]/20 text-[#5233a6]' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 Wikicommons
               </button>
@@ -304,7 +304,7 @@ export default function CategoriesPage() {
             ) : (
               <div className="grid grid-cols-3 gap-4">
                 {aiSearchModal.results.map((img, idx) => (
-                  <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-xl overflow-hidden cursor-pointer hover:ring-4 ring-indigo-500 transition-all">
+                  <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-lg overflow-hidden cursor-pointer hover:ring-4 ring-[#5233a6] transition-all">
                     <img src={img.url} className="w-full h-full object-cover" alt="Result" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-2 truncate opacity-0 group-hover:opacity-100 transition-opacity">
@@ -319,7 +319,7 @@ export default function CategoriesPage() {
             <div className="mt-6 flex justify-end">
               <button 
                 onClick={() => setAiSearchModal(prev => ({ ...prev, isOpen: false }))}
-                className="px-6 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                className="px-6 py-2 bg-slate-100 text-slate-500 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all"
               >
                 Cancel
               </button>

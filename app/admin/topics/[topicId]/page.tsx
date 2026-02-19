@@ -97,32 +97,25 @@ const filtered = quizzes.filter(q =>
   }
 
   return (
-    <div className="p-10 max-w-7xl mx-auto bg-slate-50 min-h-screen text-slate-700">
-      {/* Breadcrumbs */}
-      <div className="mb-4">
-        <Link href="/admin/topics" className="text-indigo-600 hover:text-indigo-800 text-xs font-bold uppercase tracking-widest flex items-center gap-1 transition-colors">
-          ← Back
-        </Link>
-      </div>
+    <div className="p-10 max-w-7xl mx-auto text-slate-700">
 
       {/* Dynamic Header */}
       <div className="flex justify-between items-end mb-10">
         <div>
-          <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-1">Topic / Category</p>
-          <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">{categoryTitle}</h1>
+          <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">{categoryTitle} Quizzes</h1>
         </div>
         <div className="flex gap-4">
           <input 
             type="text" 
             placeholder="Search quizzes..."
-            className="bg-white border-0 shadow-sm rounded-full px-6 py-2 text-sm w-72 focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+            className="bg-white border-0 shadow-sm rounded-lg px-6 py-2 text-sm w-72 focus:ring-2 focus:ring-[#5233a6] transition-all outline-none"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <button 
             onClick={() => { setEditingQuiz(null); setIsDrawerOpen(true); }}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-full text-sm font-bold shadow-md shadow-indigo-200 transition-all"
+            className="bg-[#5233a6] hover:bg-[#3e2680] text-white px-6 py-2 rounded-lg text-sm font-bold shadow-md shadow-[#5233a6]/20 transition-all"
           >
-            + Add New Quiz
+            + Add Quiz
           </button>
         </div>
       </div>
@@ -142,44 +135,44 @@ const filtered = quizzes.filter(q =>
           <tbody className="divide-y divide-slate-100">
             {filtered.length > 0 ? (
               filtered.map((quiz) => (
-                <tr key={quiz.id} className="hover:bg-indigo-50/30 transition-colors group">
+                <tr key={quiz.id} className="hover:bg-[#5233a6]/5 transition-colors group">
                   <td className="p-5">
                     {quiz.imageUrl ? (
-                      <img src={quiz.imageUrl} className="h-12 w-12 rounded-xl object-cover border-2 border-white shadow-sm" alt="" />
+                      <img src={quiz.imageUrl} className="h-12 w-12 rounded-lg object-cover border-2 border-white shadow-sm" alt="" />
                     ) : (
-                      <div className="h-12 w-12 rounded-xl bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase border border-dashed border-slate-300">No Img</div>
+                      <div className="h-12 w-12 rounded-lg bg-slate-100 flex items-center justify-center text-[10px] text-slate-400 font-bold uppercase border border-dashed border-slate-300">No Img</div>
                     )}
                   </td>
                   <td className="p-5 font-bold text-slate-800">
-                    <Link href={`/admin/quizzes/${quiz.id}`} className="hover:text-indigo-600 transition-colors">
+                    <Link href={`/admin/quizzes/${quiz.id}?topicId=${topicId}`} className="hover:text-[#5233a6] transition-colors">
                       {quiz.title}
                     </Link>
                   </td>
                   <td className="p-5 text-sm text-slate-500 max-w-xs truncate">{quiz.description || "No description provided."}</td>
                   <td className="px-6 py-4">
-  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-50 text-blue-600 text-xs font-bold">
+  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#009999]/10 text-[#009999] text-xs font-bold">
     {quiz.questionCount || 0}
   </div>
 </td>
                   <td className="p-5 text-right pr-10 relative">
                     <button 
                       onClick={() => setActiveMenu(activeMenu === quiz.id ? null : quiz.id)}
-                      className="w-10 h-10 inline-flex items-center justify-center rounded-full hover:bg-white hover:shadow-sm text-slate-400 hover:text-indigo-600 transition-all font-bold text-xl"
+                      className="w-10 h-10 inline-flex items-center justify-center rounded-lg hover:bg-white hover:shadow-sm text-slate-400 hover:text-[#5233a6] transition-all font-bold text-xl"
                     >
                       ⋮
                     </button>
 
                     {activeMenu === quiz.id && (
-                      <div className="absolute right-10 top-14 w-44 bg-white rounded-xl shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100 text-left">
+                      <div className="absolute right-10 top-14 w-44 bg-white rounded-lg shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100 text-left">
                         <button 
                           onClick={() => { setEditingQuiz(quiz); setIsDrawerOpen(true); setActiveMenu(null); }}
-                          className="w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                          className="w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-[#5233a6]/10 hover:text-[#5233a6] transition-colors"
                         >
                           Edit Settings
                         </button>
                         <Link 
-                          href={`/admin/quizzes/${quiz.id}`}
-                          className="block w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-indigo-50 hover:text-indigo-600 transition-colors"
+                          href={`/admin/quizzes/${quiz.id}?topicId=${topicId}`}
+                          className="block w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-[#5233a6]/10 hover:text-[#5233a6] transition-colors"
                         >
                           Manage Questions
                         </Link>
@@ -219,16 +212,16 @@ const filtered = quizzes.filter(q =>
                 <input type="hidden" name="existingImageUrl" value={editingQuiz?.imageUrl || ''} readOnly />
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Quiz Name</label>
-                  <input name="title" defaultValue={editingQuiz?.title} placeholder="e.g. History Basics" className="w-full bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" required />
+                  <input name="title" defaultValue={editingQuiz?.title} placeholder="e.g. History Basics" className="w-full bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6]" required />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Short Description</label>
-                  <textarea name="description" defaultValue={editingQuiz?.description} rows={4} placeholder="What is this quiz about?" className="w-full bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <textarea name="description" defaultValue={editingQuiz?.description} rows={4} placeholder="What is this quiz about?" className="w-full bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6]" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Quiz Cover Image</label>
                   {editingQuiz?.imageUrl ? (
-                    <div className="relative w-full h-48 group rounded-xl overflow-hidden border border-slate-200 mb-3">
+                    <div className="relative w-full h-48 group rounded-lg overflow-hidden border border-slate-200 mb-3">
                       <img src={editingQuiz.imageUrl} className="w-full h-full object-cover" alt="Cover" />
                       <div className="absolute top-2 right-2 flex gap-2">
                         <button 
@@ -237,7 +230,7 @@ const filtered = quizzes.filter(q =>
                             setAiSearchModal({ isOpen: true, query: editingQuiz?.title || '', results: [], provider: 'pexels', isSearching: false });
                             if (editingQuiz?.title) performImageSearch(editingQuiz.title, 'pexels');
                           }}
-                          className="bg-white/90 text-indigo-600 p-2 rounded-full shadow-md hover:bg-white transition-all"
+                          className="bg-white/90 text-[#5233a6] p-2 rounded-full shadow-md hover:bg-white transition-all"
                           title="Find Replacement (AI)"
                         >
                           <span>✨</span>
@@ -254,7 +247,7 @@ const filtered = quizzes.filter(q =>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <input type="file" name="imageFile" accept="image/*" className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 transition-all cursor-pointer" />
+                      <input type="file" name="imageFile" accept="image/*" className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#5233a6]/10 file:text-[#5233a6] hover:file:bg-[#5233a6]/20 transition-all cursor-pointer" />
                       <div className="text-center text-xs text-slate-400 font-bold uppercase">OR</div>
                       <button 
                         type="button"
@@ -262,7 +255,7 @@ const filtered = quizzes.filter(q =>
                           setAiSearchModal({ isOpen: true, query: editingQuiz?.title || '', results: [], provider: 'pexels', isSearching: false });
                           if (editingQuiz?.title) performImageSearch(editingQuiz.title, 'pexels');
                         }}
-                        className="w-full py-3 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                        className="w-full py-3 bg-[#5233a6]/10 text-[#5233a6] rounded-lg text-xs font-bold hover:bg-[#5233a6]/20 transition-all flex items-center justify-center gap-2"
                       >
                         <span>✨</span> Find Cover Image
                       </button>
@@ -271,8 +264,8 @@ const filtered = quizzes.filter(q =>
                   {!editingQuiz?.imageUrl && <p className="mt-2 text-[10px] text-slate-400">Recommended: Square aspect ratio, under 1MB.</p>}
                 </div>
                 <div className="flex gap-4 pt-10">
-                  <button type="submit" className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Save Changes</button>
-                  <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+                  <button type="submit" className="flex-1 bg-[#5233a6] text-white py-3 rounded-lg font-bold text-sm shadow-lg shadow-[#5233a6]/20 hover:bg-[#3e2680] transition-all">Save Changes</button>
+                  <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
                 </div>
              </form>
           </div>
@@ -300,11 +293,11 @@ const filtered = quizzes.filter(q =>
                   setIsDeleting(false);
                   setDeleteTarget(null);
                 }}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold text-sm transition-all disabled:opacity-50"
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50"
               >
                 {isDeleting ? 'Deleting...' : 'Yes, Remove It'}
               </button>
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
             </div>
           </div>
         </>
@@ -321,14 +314,14 @@ const filtered = quizzes.filter(q =>
               <input 
                 value={aiSearchModal.query}
                 onChange={(e) => setAiSearchModal({ ...aiSearchModal, query: e.target.value })}
-                className="flex-1 bg-slate-50 border-0 rounded-xl p-3 text-sm outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 placeholder-slate-400"
+                className="flex-1 bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6] text-slate-900 placeholder-slate-400"
                 placeholder="Search query..."
                 autoFocus
                 onKeyDown={(e) => e.key === 'Enter' && performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
               />
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, aiSearchModal.provider)}
-                className="bg-indigo-600 text-white px-6 rounded-xl font-bold text-sm hover:bg-indigo-700"
+                className="bg-[#5233a6] text-white px-6 rounded-lg font-bold text-sm hover:bg-[#3e2680]"
               >
                 Search
               </button>
@@ -337,13 +330,13 @@ const filtered = quizzes.filter(q =>
             <div className="flex gap-2 mb-6 border-b border-slate-100 pb-2">
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, 'pexels')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'pexels' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'pexels' ? 'bg-[#5233a6]/20 text-[#5233a6]' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 Pexels
               </button>
               <button 
                 onClick={() => performImageSearch(aiSearchModal.query, 'wikimedia')}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'wikimedia' ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'}`}
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${aiSearchModal.provider === 'wikimedia' ? 'bg-[#5233a6]/20 text-[#5233a6]' : 'text-slate-500 hover:bg-slate-50'}`}
               >
                 Wikicommons
               </button>
@@ -354,7 +347,7 @@ const filtered = quizzes.filter(q =>
             ) : (
               <div className="grid grid-cols-3 gap-4">
                 {aiSearchModal.results.map((img, idx) => (
-                  <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-xl overflow-hidden cursor-pointer hover:ring-4 ring-indigo-500 transition-all">
+                  <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-lg overflow-hidden cursor-pointer hover:ring-4 ring-[#5233a6] transition-all">
                     <img src={img.url} className="w-full h-full object-cover" alt="Result" />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[10px] p-2 truncate opacity-0 group-hover:opacity-100 transition-opacity">
@@ -369,7 +362,7 @@ const filtered = quizzes.filter(q =>
             <div className="mt-6 flex justify-end">
               <button 
                 onClick={() => setAiSearchModal(prev => ({ ...prev, isOpen: false }))}
-                className="px-6 py-2 bg-slate-100 text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-200 transition-all"
+                className="px-6 py-2 bg-slate-100 text-slate-500 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all"
               >
                 Cancel
               </button>

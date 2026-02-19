@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Script from 'next/script';
 import { getCategories, getQuizzes, getQuestions } from '../admin/topics/actions';
 import './feedbackSystem.css';
 import { triggerCorrectFeedback, triggerWrongFeedback, setSoundEnabled } from './feedbackSystem';
@@ -359,6 +360,22 @@ export default function GamePage() {
 
   return (
     <div className="game-root">
+      {/* -- Google tag (gtag.js) -- */}
+      <Script
+        strategy="afterInteractive"
+        src="https://www.googletagmanager.com/gtag/js?id=G-3FSLPG9C9P"
+      />
+      <Script
+        id="google-analytics"
+        strategy="afterInteractive"
+      >
+        {`
+          window.dataLayer = window.dataLayer || [];
+          function gtag(){dataLayer.push(arguments);}
+          gtag('js', new Date());
+          gtag('config', 'G-3FSLPG9C9P');
+        `}
+      </Script>
       {/* External Resources */}
       <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap" rel="stylesheet" />
       <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet" />
