@@ -1,5 +1,6 @@
 import { Poppins } from 'next/font/google';
 import Breadcrumbs from './breadcrumbs';
+import { Suspense } from 'react';
 
 const poppins = Poppins({
   weight: ['400', '500', '600', '700'],
@@ -27,7 +28,11 @@ export default function AdminLayout({
           <h1 className="text-2xl font-bold text-white/90">Trivia Pro</h1>
         </div>
       </header>
+<nav>
+    <Suspense fallback={<div className="h-6 w-32 animate-pulse bg-gray-200" />}>
       <Breadcrumbs />
+    </Suspense>
+  </nav>
       <main>{children}</main>
     </div>
   );
