@@ -16,9 +16,10 @@ import {
   arrayUnion,
   serverTimestamp
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import sharp from 'sharp';
 import { processTriviaAudio } from '../../game/triviaAudioGenerator';
+import { adminStorage } from '@/lib/firebase-admin';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * TIER 1: TOPICS (Categories)
@@ -61,19 +62,10 @@ export async function upsertCategory(id: string | null, formData: FormData) {
   // 1. Extract values from FormData
   // We check for 'title' and 'name' to be safe, then map it to 'name'
   const name = (formData.get('name') || formData.get('title')) as string;
-  const imageFile = formData.get('imageFile') as File;
   let imageUrl = formData.get('existingImageUrl') as string;
 
-  // 2. Handle Image Upload (if you have covers for categories)
-  if (imageFile && imageFile.size > 0) {
-    const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const resizedBuffer = await sharp(buffer)
-      .resize({ width: 1600, height: 1000, fit: 'inside' })
-      .toBuffer();
-    const storageRef = ref(storage, `trivia/topic-covers/${Date.now()}-${imageFile.name}`);
-    await uploadBytes(storageRef, resizedBuffer);
-    imageUrl = await getDownloadURL(storageRef);
-  } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
+  // 2. Handle External Image Import (AI Search result)
+  if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
     // Handle external image (AI Search result) - Download and save to Storage
     try {
       const response = await fetch(imageUrl);
@@ -89,9 +81,17 @@ export async function upsertCategory(id: string | null, formData: FormData) {
         let ext = contentType.split('/')[1] || 'jpg';
         if (ext === 'jpeg') ext = 'jpg';
         
-        const storageRef = ref(storage, `trivia/topic-covers/imported/${Date.now()}.${ext}`);
-        await uploadBytes(storageRef, resizedBuffer, { contentType });
-        imageUrl = await getDownloadURL(storageRef);
+        const fileName = `trivia/topic-covers/imported/${Date.now()}.${ext}`;
+        const bucket = adminStorage.bucket();
+        const file = bucket.file(fileName);
+        const token = uuidv4();
+
+        await file.save(resizedBuffer, {
+          metadata: { contentType, metadata: { firebaseStorageDownloadTokens: token } }
+        });
+
+        // Construct public URL manually
+        imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
       }
     } catch (error) {
       console.error("Error importing external category image:", error);
@@ -179,19 +179,10 @@ export async function upsertQuiz(id: string | null, topicId: string | null, form
   // We look for 'name' because that's likely what your form input is named
   const title = (formData.get('name') || formData.get('title')) as string;
   const description = formData.get('description') as string;
-  const imageFile = formData.get('imageFile') as File;
   let imageUrl = formData.get('existingImageUrl') as string;
 
-  // 2. Handle Image Upload
-  if (imageFile && imageFile.size > 0) {
-    const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const resizedBuffer = await sharp(buffer)
-      .resize({ width: 1600, height: 1000, fit: 'inside' })
-      .toBuffer();
-    const storageRef = ref(storage, `trivia/quiz-covers/${Date.now()}-${imageFile.name}`);
-    await uploadBytes(storageRef, resizedBuffer);
-    imageUrl = await getDownloadURL(storageRef);
-  } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
+  // 2. Handle External Image Import
+  if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
     // Handle external image (AI Search result) - Download and save to Storage
     try {
       const response = await fetch(imageUrl);
@@ -207,9 +198,17 @@ export async function upsertQuiz(id: string | null, topicId: string | null, form
         let ext = contentType.split('/')[1] || 'jpg';
         if (ext === 'jpeg') ext = 'jpg';
         
-        const storageRef = ref(storage, `trivia/quiz-covers/imported/${Date.now()}.${ext}`);
-        await uploadBytes(storageRef, resizedBuffer, { contentType });
-        imageUrl = await getDownloadURL(storageRef);
+        const fileName = `trivia/quiz-covers/imported/${Date.now()}.${ext}`;
+        const bucket = adminStorage.bucket();
+        const file = bucket.file(fileName);
+        const token = uuidv4();
+
+        await file.save(resizedBuffer, {
+          metadata: { contentType, metadata: { firebaseStorageDownloadTokens: token } }
+        });
+
+        // Construct public URL manually
+        imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
       }
     } catch (error) {
       console.error("Error importing external quiz image:", error);
@@ -326,7 +325,6 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   const photographer = formData.get('imagePhotographer') as string;
   const imageSource = formData.get('imageSource') as string;
 
-  const imageFile = formData.get('imageFile') as File;
   let imageUrl = formData.get('existingImageUrl') as string;
   let isNewUpload = false;
   let finalOrientation = orientation || 'landscape';
@@ -351,23 +349,12 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
     }
   }
 
-  if (imageFile && imageFile.size > 0) {
-    const buffer = Buffer.from(await imageFile.arrayBuffer());
-    const pipeline = sharp(buffer).rotate();
-    const metadata = await pipeline.metadata();
-    if (metadata.width && metadata.height) {
-      finalOrientation = metadata.width >= metadata.height ? 'landscape' : 'portrait';
-    }
-
-    const resizedBuffer = await pipeline
-      .resize({ width: 1600, height: 1000, fit: 'inside' })
-      .toBuffer();
-
-    const storageRef = ref(storage, `trivia/question-images/${Date.now()}-${imageFile.name}`);
-    await uploadBytes(storageRef, resizedBuffer);
-    imageUrl = await getDownloadURL(storageRef);
-    isNewUpload = true;
-  } else if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
+  // Check if client uploaded a new image (passed as URL now)
+  // We detect "new upload" if the URL changed or if we have a flag, 
+  // but for simplicity, if imageUrl is different from existing, we assume new.
+  // However, the client logic below handles the upload.
+  
+  if (imageUrl && imageUrl.startsWith('http') && !imageUrl.includes('firebasestorage.googleapis.com')) {
     // NEW: Import external images (Wikimedia/Pexels) to Firebase Storage
     try {
       const response = await fetch(imageUrl);
@@ -393,10 +380,15 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
         if (contentType.includes('webp')) ext = 'webp';
         
         const fileName = `imported/${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
-        const storageRef = ref(storage, `trivia/question-images/${fileName}`);
+        const bucket = adminStorage.bucket();
+        const file = bucket.file(`trivia/question-images/${fileName}`);
+        const token = uuidv4();
         
-        await uploadBytes(storageRef, resizedBuffer, { contentType });
-        imageUrl = await getDownloadURL(storageRef);
+        await file.save(resizedBuffer, {
+          metadata: { contentType, metadata: { firebaseStorageDownloadTokens: token } }
+        });
+
+        imageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(`trivia/question-images/${fileName}`)}?alt=media&token=${token}`;
         isNewUpload = true;
       }
     } catch (error) {
@@ -407,9 +399,16 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   // 3. Handle a new audio file upload, which overwrites any 'en' URL
   const audioFile = formData.get('audioFile') as File;
   if (audioFile && audioFile.size > 0) {
-    const storageRef = ref(storage, `trivia/question-audio/${Date.now()}-${audioFile.name}`);
-    await uploadBytes(storageRef, audioFile);
-    const audioUrl = await getDownloadURL(storageRef);
+    const buffer = Buffer.from(await audioFile.arrayBuffer());
+    const fileName = `trivia/question-audio/${Date.now()}-${audioFile.name}`;
+    const bucket = adminStorage.bucket();
+    const file = bucket.file(fileName);
+    const token = uuidv4();
+
+    await file.save(buffer, {
+      metadata: { contentType: audioFile.type || 'audio/mpeg', metadata: { firebaseStorageDownloadTokens: token } }
+    });
+    const audioUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
     audioUrls.en = audioUrl;
   }
 
@@ -527,9 +526,15 @@ export async function autoAssignImage(questionId: string, searchQuery: string) {
     .toBuffer();
 
   const storagePath = `trivia/question-images/automated/${questionId}.jpg`;
-  const storageRef = ref(storage, storagePath);
-  await uploadBytes(storageRef, resizedBuffer, { contentType: 'image/jpeg' });
-  const permanentUrl = await getDownloadURL(storageRef);
+  const bucket = adminStorage.bucket();
+  const file = bucket.file(storagePath);
+  const token = uuidv4();
+
+  await file.save(resizedBuffer, {
+    metadata: { contentType: 'image/jpeg', metadata: { firebaseStorageDownloadTokens: token } }
+  });
+
+  const permanentUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(storagePath)}?alt=media&token=${token}`;
 
   const now = new Date();
   const ratio = parseFloat((photo.width / photo.height).toFixed(2));

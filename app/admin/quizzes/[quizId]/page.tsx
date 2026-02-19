@@ -13,6 +13,8 @@ import {
 } from '../../topics/actions';
 import ModalConfirm from '@/components/ModalConfirm';
 import { searchImages } from '../../../actions';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function QuestionsPage({ params }: { params: Promise<{ quizId: string }> }) {
   const { quizId } = useReact(params);
@@ -284,6 +286,36 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     }
   };
 
+  // Helper: Resize image on client
+  const resizeImage = (file: File, maxWidth = 1600, maxHeight = 1000): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round(height * (maxWidth / width));
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round(width * (maxHeight / height));
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.8);
+      };
+      img.onerror = reject;
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
@@ -486,6 +518,17 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             e.preventDefault();
             setIsSaving(true);
             const formData = new FormData(e.currentTarget);
+
+            // Client-side Upload
+            const file = formData.get('imageFile') as File;
+            if (file && file.size > 0) {
+              const resizedBlob = await resizeImage(file);
+              const storageRef = ref(storage, `trivia/question-images/${Date.now()}-${file.name.replace(/\.[^/.]+$/, "")}.jpg`);
+              await uploadBytes(storageRef, resizedBlob, { contentType: 'image/jpeg' });
+              const downloadUrl = await getDownloadURL(storageRef);
+              formData.set('existingImageUrl', downloadUrl);
+            }
+
             const result = await upsertQuestion(editingQuestion?.id || null, quizId, formData);
             
             // Update local state if result is returned (useful for new questions to get ID)
@@ -643,6 +686,16 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             e.preventDefault();
             setIsSaving(true);
             const formData = new FormData(e.currentTarget);
+
+            const file = formData.get('imageFile') as File;
+            if (file && file.size > 0) {
+              const resizedBlob = await resizeImage(file);
+              const storageRef = ref(storage, `trivia/quiz-covers/${Date.now()}-${file.name.replace(/\.[^/.]+$/, "")}.jpg`);
+              await uploadBytes(storageRef, resizedBlob, { contentType: 'image/jpeg' });
+              const downloadUrl = await getDownloadURL(storageRef);
+              formData.set('existingImageUrl', downloadUrl);
+            }
+
             await upsertQuiz(quizId, null, formData);
             await loadData();
             setIsQuizDrawerOpen(false);

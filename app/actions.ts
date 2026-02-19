@@ -2,10 +2,11 @@
 
 import { z } from 'zod';
 import { ai } from '@/lib/genkit';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc, collection } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { processTriviaAudio } from './game/triviaAudioGenerator';
+import { adminStorage } from '@/lib/firebase-admin';
+import { v4 as uuidv4 } from 'uuid';
 
 export async function generateQuestionAudio(questionId: string, language: string) {
   try {
@@ -33,10 +34,16 @@ export async function generateQuestionAudio(questionId: string, language: string
 
     // 3. Upload to Storage
     const audioBuffer = Buffer.from(result.audioBase64, 'base64');
-    const storageRef = ref(storage, `trivia/audio/${questionId}_${language}.mp3`);
+    const fileName = `trivia/audio/${questionId}_${language}.mp3`;
+    const bucket = adminStorage.bucket();
+    const file = bucket.file(fileName);
+    const token = uuidv4();
     
-    await uploadBytes(storageRef, audioBuffer, { contentType: 'audio/mp3' });
-    const audioUrl = await getDownloadURL(storageRef);
+    await file.save(audioBuffer, {
+      metadata: { contentType: 'audio/mp3', metadata: { firebaseStorageDownloadTokens: token } }
+    });
+
+    const audioUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
 
     // 4. Update the question document with the new URL
     await updateDoc(docRef, {

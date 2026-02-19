@@ -4,12 +4,15 @@ import { useEffect, useState } from 'react';
 import { getCategories, deleteCategory, upsertCategory } from './actions';
 import Link from 'next/link';
 import { searchImages } from '../../actions';
+import { storage } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Drawer & Edit States
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -35,13 +38,57 @@ export default function CategoriesPage() {
     setIsLoading(false);
   };
 
-  const handleSubmit = async (formData: FormData) => {
+  // Helper: Resize image on client before upload
+  const resizeImage = (file: File, maxWidth = 1600, maxHeight = 1000): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round(height * (maxWidth / width));
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round(width * (maxHeight / height));
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.8);
+      };
+      img.onerror = reject;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSaving(true);
+    const formData = new FormData(e.currentTarget);
+
     const file = formData.get('imageFile') as File;
     const MAX_SIZE = 1 * 1024 * 1024; // 1MB
 
     if (file && file.size > MAX_SIZE) {
       alert(`The image is too large (${(file.size / (1024 * 1024)).toFixed(2)}MB). Please keep it under 1MB.`);
+      setIsSaving(false);
       return;
+    }
+
+    // Client-side Upload
+    if (file && file.size > 0) {
+      const resizedBlob = await resizeImage(file);
+      const storageRef = ref(storage, `trivia/topic-covers/${Date.now()}-${file.name.replace(/\.[^/.]+$/, "")}.jpg`);
+      await uploadBytes(storageRef, resizedBlob, { contentType: 'image/jpeg' });
+      const downloadUrl = await getDownloadURL(storageRef);
+      formData.set('existingImageUrl', downloadUrl); // Pass URL to server action
     }
 
     try {
@@ -51,6 +98,8 @@ export default function CategoriesPage() {
     } catch (error) {
       console.error("Submission failed:", error);
       alert("The server encountered an issue saving the category.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -176,7 +225,7 @@ export default function CategoriesPage() {
                 <h2 className="text-xl font-bold text-slate-800">{editingCategory ? 'Update Category' : 'New Category'}</h2>
                 <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl">✕</button>
              </div>
-             <form action={handleSubmit} className="space-y-6">
+             <form onSubmit={handleSubmit} className="space-y-6">
                 <input type="hidden" name="existingImageUrl" value={editingCategory?.imageUrl || ''} readOnly />
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Category Name</label>
@@ -222,7 +271,9 @@ export default function CategoriesPage() {
                   )}
                 </div>
                 <div className="flex gap-4 pt-10">
-                  <button type="submit" className="flex-1 bg-[#5233a6] text-white py-3 rounded-lg font-bold text-sm shadow-lg shadow-[#5233a6]/20 hover:bg-[#3e2680] transition-all">Save Changes</button>
+                  <button type="submit" disabled={isSaving} className="flex-1 bg-[#5233a6] text-white py-3 rounded-lg font-bold text-sm shadow-lg shadow-[#5233a6]/20 hover:bg-[#3e2680] transition-all disabled:opacity-70 disabled:cursor-not-allowed">
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </button>
                   <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
                 </div>
              </form>
