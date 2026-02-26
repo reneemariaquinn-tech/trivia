@@ -109,6 +109,7 @@ export async function searchImages(query: string, provider: 'pexels' | 'wikimedi
         headers: { Authorization: process.env.PEXELS_API_KEY }
       });
       const data = await res.json();
+      console.log('Pexels status:', res.status, 'photos:', data.photos?.length ?? data);
       if (!data.photos) return [];
       
       return data.photos.map((p: any) => ({

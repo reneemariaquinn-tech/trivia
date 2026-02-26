@@ -97,12 +97,15 @@ export async function processTriviaAudio(
       .map((ans, index) => `<say-as interpret-as="characters">${String.fromCharCode(65 + index)}</say-as>: ${ans}`)
       .join('<break time="1000ms"/>');
 
+    // Replace 5+ underscores or hyphens with "blank" for TTS using SSML substitution
+    const ssmlQuestion = translatedQuestion.replace(/([_\-]{5,})/g, '<sub alias="blank">$1</sub>');
+
     // Build SSML with 1.5s pause and repetition
     const ssml = `
       <speak>
-        ${translatedQuestion}
+        ${ssmlQuestion}
         <break time="2000ms"/>
-        ${translatedQuestion}
+        ${ssmlQuestion}
         <break time="1500ms"/>
         ${optionsText}
       </speak>
