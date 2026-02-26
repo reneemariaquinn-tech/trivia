@@ -5,7 +5,7 @@ runConfig:
 
 env:
   - variable: PEXELS_API_KEY
-    secret: PEXELS_API_KEY
+    secret: projects/resparke-hub/secrets/PEXELS_API_KEY
     availability:
       - BUILD
       - RUNTIME
