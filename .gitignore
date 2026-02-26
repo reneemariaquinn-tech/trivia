@@ -45,3 +45,5 @@ next-env.d.ts
 service-account.json
 trivia-34f8c-firebase-adminsdk-*.json
 key-resparke-hub-firebase.json
+
+apphosting.yaml
