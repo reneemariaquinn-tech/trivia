@@ -8,55 +8,7 @@ import { processTriviaAudio } from './game/triviaAudioGenerator';
 import { adminStorage } from '@/lib/firebase-admin';
 import { v4 as uuidv4 } from 'uuid';
 
-export async function generateQuestionAudio(questionId: string, language: string) {
-  try {
-    // 1. Correct Collection: 'questions'
-    const docRef = doc(db, 'questions', questionId);
-    const docSnap = await getDoc(docRef);
 
-    if (!docSnap.exists()) throw new Error('Question document not found in "questions" collection');
-    const questionData = docSnap.data();
-
-    // 2. Generate Audio with Gemini 3
-    const response = await ai.generate({
-      prompt: `Translate the following trivia question to ${language} and generate the audio for it: "${questionData.text}"`,
-      output: {
-        // 'as any' bypasses the Zod version mismatch error
-        schema: z.object({
-          translatedText: z.string(),
-          audioBase64: z.string(),
-        }) as any
-      }
-    });
-
-    const result = response.output;
-    if (!result) throw new Error('AI failed to generate content');
-
-    // 3. Upload to Storage
-    const audioBuffer = Buffer.from(result.audioBase64, 'base64');
-    const fileName = `trivia/audio/${questionId}_${language}.mp3`;
-    const bucket = adminStorage.bucket();
-    const file = bucket.file(fileName);
-    const token = uuidv4();
-    
-    await file.save(audioBuffer, {
-      metadata: { contentType: 'audio/mp3', metadata: { firebaseStorageDownloadTokens: token } }
-    });
-
-    const audioUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
-
-    // 4. Update the question document with the new URL
-    await updateDoc(docRef, {
-      [`audioUrls.${language}`]: audioUrl,
-      [`translations.${language}`]: result.translatedText
-    });
-
-    return { success: true, audioUrl, text: result.translatedText };
-  } catch (error) {
-    console.error('Action Error:', error);
-    return { success: false, error: (error as Error).message };
-  }
-}
 
 export async function generateQuestionAudioWithTTS(questionId: string, language: string) {
   try {
