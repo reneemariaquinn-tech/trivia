@@ -24,11 +24,14 @@ const getCredentials = () => {
 if (!admin.apps.length) {
   const credentials = getCredentials();
   const storageBucket = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'resparke-hub.firebasestorage.app';
-  
-  admin.initializeApp({
-    credential: credentials ? admin.credential.cert(credentials) : undefined,
-    storageBucket,
-  });
+
+  // On Firebase App Hosting, ADC is available automatically — no credential config needed.
+  // Locally or in other envs, use explicit credentials if provided.
+  if (credentials) {
+    admin.initializeApp({ credential: admin.credential.cert(credentials), storageBucket });
+  } else {
+    admin.initializeApp({ storageBucket });
+  }
 }
 
 export const adminStorage = admin.storage();
