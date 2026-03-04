@@ -175,7 +175,7 @@ tailwind.config = {
                 <div class="lobby-right">
                     <h1 class="menu-title">${quizData.title}</h1>
                     
-                    <div class="setting-row">
+                    <div class="setting-row" style="display:none">
                         <span class="setting-label">Level</span>
                         <div class="mode-selector" id="level-selector">
                             <button class="mode-opt active" onclick="selectLevel('easy')">EASY</button>
@@ -187,9 +187,18 @@ tailwind.config = {
                     <div class="setting-row">
                         <span class="setting-label">Game Type</span>
                         <div class="mode-selector" id="mode-selector">
-                            <button class="mode-opt active" data-type="play" onclick="selectMode('play')">Play</button>
+                            <button class="mode-opt active" data-type="play" onclick="selectMode('play')">Guided</button>
                             <button class="mode-opt" data-type="quiet" onclick="selectMode('quiet')">Quiet</button>
                             <button class="mode-opt" data-type="auto" onclick="selectMode('auto')">Auto</button>
+                        </div>
+                    </div>
+
+                    <div class="setting-row">
+                        <span class="setting-label">Questions</span>
+                        <div class="mode-selector" id="questions-selector">
+                            <button class="mode-opt active" data-val="15" onclick="selectQuestionCount(15)">15</button>
+                            <button class="mode-opt" data-val="30" onclick="selectQuestionCount(30)">30</button>
+                            <button class="mode-opt" data-val="50" onclick="selectQuestionCount(50)">50</button>
                         </div>
                     </div>
 
@@ -600,6 +609,7 @@ body {
     // script.js
     const jsContent = `
 let selectedLevel = 'easy';
+let selectedQuestionCount = 15;
 let isAudioOn = true;
 let gameMode = 'casual';
 let gameQuestions = [];
@@ -658,6 +668,13 @@ function selectLevel(level) {
     });
 }
 
+function selectQuestionCount(count) {
+    selectedQuestionCount = count;
+    document.querySelectorAll('#questions-selector .mode-opt').forEach(b => {
+        b.classList.toggle('active', parseInt(b.getAttribute('data-val')) === count);
+    });
+}
+
 function selectMode(mode) {
     document.querySelectorAll('#mode-selector .mode-opt').forEach(b => {
         b.classList.toggle('active', b.getAttribute('data-type') === mode);
@@ -688,7 +705,7 @@ function startGame() {
     if (filtered.length === 0) filtered = GAME_DATA.questions; // Fallback
 
     // Shuffle
-    gameQuestions = filtered.sort(() => Math.random() - 0.5).slice(0, 20);
+    gameQuestions = filtered.sort(() => Math.random() - 0.5).slice(0, selectedQuestionCount);
     
     if (gameQuestions.length === 0) {
         alert("No questions found.");
