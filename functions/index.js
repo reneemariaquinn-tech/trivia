@@ -32,10 +32,7 @@ exports.exportGameZip = functions.https.onRequest(async (req, res) => {
 
   try {
     // 1. Fetch Game Data
-    console.log('DEBUG quizId:', quizId);
-    console.log('DEBUG db.databaseId:', db.databaseId);
     const quizDoc = await db.collection('quizzes').doc(quizId).get();
-    console.log('DEBUG quizDoc.exists:', quizDoc.exists);
     if (!quizDoc.exists) {
       res.status(404).send('Quiz not found');
       return;
@@ -64,11 +61,17 @@ exports.exportGameZip = functions.https.onRequest(async (req, res) => {
     // Helper to download and add file to zip
     const downloadAndAddToZip = async (url, filename) => {
       try {
-        const response = await axios.get(url, { responseType: 'stream' });
+        const response = await axios.get(url, {
+          responseType: 'stream',
+          headers: {
+            // Required by Wikimedia API policy; also polite for all providers
+            'User-Agent': 'ResparkeTrivia/1.0 (https://resparke.com)'
+          }
+        });
         archive.append(response.data, { name: filename });
         return true;
       } catch (e) {
-        console.error(`Failed to download ${url}`, e);
+        console.error(`Failed to download ${url}: ${e.message}`);
         return false;
       }
     };
