@@ -183,15 +183,6 @@ tailwind.config = {
                             <button class="mode-opt" onclick="selectLevel('hard')">HARD</button>
                         </div>
                     </div>
-                    
-                    <div class="setting-row">
-                        <span class="setting-label">Game Type</span>
-                        <div class="mode-selector" id="mode-selector">
-                            <button class="mode-opt active" data-type="play" onclick="selectMode('play')">Guided</button>
-                            <button class="mode-opt" data-type="quiet" onclick="selectMode('quiet')">Quiet</button>
-                            <button class="mode-opt" data-type="auto" onclick="selectMode('auto')">Auto</button>
-                        </div>
-                    </div>
 
                     <div class="setting-row">
                         <span class="setting-label">Questions</span>
@@ -201,6 +192,16 @@ tailwind.config = {
                             <button class="mode-opt" data-val="50" onclick="selectQuestionCount(50)">50</button>
                         </div>
                     </div>
+                                        
+                    <div class="setting-row">
+                        <span class="setting-label">Game Type</span>
+                        <div class="mode-selector" id="mode-selector">
+                            <button class="mode-opt active" data-type="guided" onclick="selectMode('guided')">Guided</button>
+                            <button class="mode-opt" data-type="quiet" onclick="selectMode('quiet')">Quiet</button>
+                            <button class="mode-opt" data-type="auto" onclick="selectMode('auto')">Auto</button>
+                        </div>
+                    </div>
+
 
                     <div class="mode-desc" id="mode-desc">Questions and audio guide you. Tap to move forward.</div>
 
@@ -692,7 +693,7 @@ function selectMode(mode) {
     }
 
     const desc = {
-        play: "Questions and audio guide you. Tap to move forward.",
+        guided: "Questions and audio guide you. Tap to move forward.",
         quiet: "You read the questions aloud. Tap to move forward.",
         auto: "Runs automatically for relaxed viewing."
     };

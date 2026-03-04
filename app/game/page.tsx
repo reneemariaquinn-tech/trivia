@@ -60,6 +60,7 @@ export default function GamePage() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<string>('easy');
+  const [selectedQuestionCount, setSelectedQuestionCount] = useState<number>(15);
 
   const audioRef = useRef<HTMLAudioElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -247,8 +248,8 @@ export default function GamePage() {
     // Fallback: if no questions for this level, take any to avoid empty game
     if (filtered.length === 0) filtered = questions;
 
-    // Shuffle and take up to 20
-    const shuffled = [...filtered].sort(() => Math.random() - 0.5).slice(0, 20);
+    // Shuffle and take up to selected count
+    const shuffled = [...filtered].sort(() => Math.random() - 0.5).slice(0, selectedQuestionCount);
     
     if (shuffled.length === 0) {
       alert("No questions found for this quiz/level.");
@@ -448,14 +449,14 @@ export default function GamePage() {
                 </div>
                 <h1 className="menu-title" style={{ marginTop: 0 }}>{selectedQuiz?.title}</h1>
                 
-                <div className="setting-row">
+                <div className="setting-row" style={{ display: 'none' }}>
                   <span className="setting-label">Level</span>
                   <div className="mode-selector">
                     {['easy', 'medium', 'hard'].map(level => {
                       const count = questions.filter(q => (q.difficulty || 'medium') === level).length;
                       const isDisabled = count < 5;
                       return (
-                        <button 
+                        <button
                           key={level}
                           className={`mode-opt ${selectedLevel === level ? 'active' : ''}`}
                           onClick={() => selectLevel(level)}
@@ -472,11 +473,11 @@ export default function GamePage() {
                 <div className="setting-row">
                   <span className="setting-label">Game Type</span>
                   <div className="mode-selector">
-                    <button 
+                    <button
                       className={`mode-opt ${gameMode === 'casual' && isAudioOn ? 'active' : ''}`}
                       onClick={() => { setGameMode('casual'); setIsAudioOn(true); }}
                     >
-                      Play
+                      Guided
                     </button>
                     <button 
                       className={`mode-opt ${gameMode === 'casual' && !isAudioOn ? 'active' : ''}`}
@@ -490,6 +491,21 @@ export default function GamePage() {
                     >
                       Auto
                     </button>
+                  </div>
+                </div>
+
+                <div className="setting-row">
+                  <span className="setting-label">Questions</span>
+                  <div className="mode-selector">
+                    {[15, 30, 50].map(count => (
+                      <button
+                        key={count}
+                        className={`mode-opt ${selectedQuestionCount === count ? 'active' : ''}`}
+                        onClick={() => setSelectedQuestionCount(count)}
+                      >
+                        {count}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
