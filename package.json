@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "docs": "typedoc"
+    "docs": "typedoc",
+    "deploy:functions": "firebase deploy --only functions:exportGameZip"
   },
   "dependencies": {
     "@genkit-ai/googleai": "^1.28.0",
