@@ -698,7 +698,7 @@ function startGame() {
     score = 0;
     currentIdx = 0;
 
-    pushEvent('game_start', { level: selectedLevel, mode: gameMode, total_questions: gameQuestions.length });
+    pushEvent('game_start', { game_mode: gameMode, game_questions: gameQuestions.length });
 
     document.getElementById('view-levels').style.display = 'none';
     document.getElementById('view-game').style.display = 'grid'; // grid for layout
@@ -836,9 +836,9 @@ function handleAnswer(idx, isCorrect) {
     }
 
     pushEvent('game_answer_question', {
-        question_index: currentIdx + 1,
-        question_text: q.text,
-        is_correct: isCorrect,
+        game_question_index: currentIdx + 1,
+        game_question_text: q.text,
+        game_is_correct: isCorrect,
     });
 
     if (isCorrect) {
@@ -913,7 +913,7 @@ function runAutoSequence() {
 }
 
 function endGame() {
-    pushEvent('game_finish', { score, total_questions: gameQuestions.length, mode: gameMode, level: selectedLevel });
+    pushEvent('game_finish', { game_score: score, game_questions: gameQuestions.length, game_mode: gameMode });
 
     document.getElementById('view-game').style.display = 'none';
     document.getElementById('view-result').style.display = 'flex';
