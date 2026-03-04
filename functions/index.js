@@ -604,6 +604,36 @@ let locked = false;
 const sfxCorrect = new Audio('assets/correct.mp3');
 const sfxWrong = new Audio('assets/wrong.mp3');
 
+// --- GTM ---
+let gtmPayload = {};
+
+function getGtmPayload() {
+    const raw = new URLSearchParams(window.location.search).get('ga');
+    if (!raw) return {};
+    try {
+        const bytes = Uint8Array.from(atob(raw), c => c.charCodeAt(0));
+        return JSON.parse(new TextDecoder().decode(bytes));
+    } catch (e) {
+        console.warn('Failed to parse GTM payload', e);
+        return {};
+    }
+}
+
+function pushEvent(event, eventData) {
+    const genericPayload = {
+        event_type: 'GAMES',
+        game_type: 'Trivia',
+        game_name: GAME_DATA.title,
+    };
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push({
+        event,
+        ...genericPayload,
+        ...gtmPayload,
+        ...eventData
+    });
+}
+
 // --- Setup & Scaling ---
 function handleResize() {
     const shell = document.getElementById('shell');
@@ -612,6 +642,7 @@ function handleResize() {
 }
 window.addEventListener('resize', handleResize);
 handleResize();
+gtmPayload = getGtmPayload();
 
 // --- Lobby Logic ---
 function selectLevel(level) {
@@ -660,7 +691,9 @@ function startGame() {
 
     score = 0;
     currentIdx = 0;
-    
+
+    pushEvent('game_start', { level: selectedLevel, mode: gameMode, total_questions: gameQuestions.length });
+
     document.getElementById('view-levels').style.display = 'none';
     document.getElementById('view-game').style.display = 'grid'; // grid for layout
     
@@ -796,6 +829,12 @@ function handleAnswer(idx, isCorrect) {
         audio.currentTime = 0;
     }
 
+    pushEvent('game_answer_question', {
+        question_index: currentIdx + 1,
+        question_text: q.text,
+        is_correct: isCorrect,
+    });
+
     if (isCorrect) {
         score++;
         if (isAudioOn) {
@@ -868,6 +907,8 @@ function runAutoSequence() {
 }
 
 function endGame() {
+    pushEvent('game_finish', { score, total_questions: gameQuestions.length, mode: gameMode, level: selectedLevel });
+
     document.getElementById('view-game').style.display = 'none';
     document.getElementById('view-result').style.display = 'flex';
     
