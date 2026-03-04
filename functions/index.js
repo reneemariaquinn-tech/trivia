@@ -32,7 +32,10 @@ exports.exportGameZip = functions.https.onRequest(async (req, res) => {
 
   try {
     // 1. Fetch Game Data
+    console.log('DEBUG quizId:', quizId);
+    console.log('DEBUG db.databaseId:', db.databaseId);
     const quizDoc = await db.collection('quizzes').doc(quizId).get();
+    console.log('DEBUG quizDoc.exists:', quizDoc.exists);
     if (!quizDoc.exists) {
       res.status(404).send('Quiz not found');
       return;
