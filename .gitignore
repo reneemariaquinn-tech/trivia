@@ -43,5 +43,7 @@ next-env.d.ts
 
 # Firebase/Google Credentials
 service-account.json
-trivia-34f8c-firebase-adminsdk-*.json
+service-accont.json
+new-key.json
+*-firebase-adminsdk-*.json
 key-resparke-hub-firebase.json

@@ -1,0 +1,18 @@
+{
+  "entryPoints": [
+    "app/admin/topics/actions.ts",
+    "app/actions.ts",
+    "app/game/triviaAudioGenerator.ts",
+    "src/lib/firebase.ts",
+    "src/lib/firebase-admin.ts"
+  ],
+  "entryPointStrategy": "expand",
+  "plugin": ["typedoc-plugin-markdown"],
+  "out": "docs/api",
+  "name": "Trivia Pro",
+  "readme": "docs/overview.md",
+  "hideGenerator": true,
+  "groupOrder": ["Topics", "Quizzes", "Questions", "Images", "Audio", "Utilities", "*"],
+  "sort": ["source-order"],
+  "exclude": ["**/*.test.ts", "**/node_modules/**"]
+}

@@ -3,8 +3,8 @@ import confetti from 'canvas-confetti';
 
 // --- 1. Audio Requirement ---
 // Use the new sound files from Firebase Storage
-const successSoundUrl = 'https://firebasestorage.googleapis.com/v0/b/trivia-34f8c.firebasestorage.app/o/assets%2Fright-answer.mp3?alt=media';
-const wrongSoundUrl = 'https://firebasestorage.googleapis.com/v0/b/trivia-34f8c.firebasestorage.app/o/assets%2Fwrong-answer.mp3?alt=media';
+const successSoundUrl = 'https://firebasestorage.googleapis.com/v0/b/resparke-hub.firebasestorage.app/o/trivia%2Fassets%2Fright-answer.mp3?alt=media';
+const wrongSoundUrl = 'https://firebasestorage.googleapis.com/v0/b/resparke-hub.firebasestorage.app/o/trivia%2Fassets%2Fwrong-answer.mp3?alt=media';
 
 const successSound = typeof Audio !== 'undefined' ? new Audio(successSoundUrl) : null;
 const wrongSound = typeof Audio !== 'undefined' ? new Audio(wrongSoundUrl) : null;

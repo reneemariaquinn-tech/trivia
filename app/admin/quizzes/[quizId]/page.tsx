@@ -60,8 +60,8 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     if (filterLevel !== 'all' && (q.difficulty || 'medium') !== filterLevel) return false;
     if (filterImage === 'has-image' && !q.imageUrl) return false;
     if (filterImage === 'no-image' && q.imageUrl) return false;
-    if (filterAudio === 'has-audio' && !q.audioUrl) return false;
-    if (filterAudio === 'no-audio' && q.audioUrl) return false;
+    if (filterAudio === 'has-audio' && !(q.audioUrls?.en || q.audioUrl)) return false;
+    if (filterAudio === 'no-audio' && (q.audioUrls?.en || q.audioUrl)) return false;
     if (searchTerm && !(q.text || "").toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
@@ -335,8 +335,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
         <div className="flex gap-3">
           <button 
             onClick={() => {
-              // TODO: Paste the full URL from 'firebase functions:list' here
-              const functionUrl = 'https://us-central1-trivia-34f8c.cloudfunctions.net/exportGameZip';
+              const functionUrl = 'https://us-central1-resparke-hub.cloudfunctions.net/exportGameZip';
               window.open(`${functionUrl}?quizId=${quizId}&t=${Date.now()}`, '_blank');
             }}
             className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"

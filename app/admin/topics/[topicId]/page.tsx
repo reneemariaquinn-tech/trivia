@@ -338,7 +338,7 @@ const filtered = quizzes.filter(q =>
                 disabled={isDeleting}
                 onClick={async () => {
                   setIsDeleting(true);
-                  await deleteQuiz(deleteTarget.id, topicId);
+                  await deleteQuiz(deleteTarget.id);
                   await loadQuizzes();
                   setIsDeleting(false);
                   setDeleteTarget(null);

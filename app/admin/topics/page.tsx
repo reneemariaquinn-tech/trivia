@@ -289,7 +289,7 @@ export default function CategoriesPage() {
             <div className="text-center">
               <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
               <h3 className="text-xl font-bold text-slate-800 mb-2">Delete Category?</h3>
-              <p className="text-slate-500 text-sm mb-8">Are you sure you want to delete <span className="font-bold text-slate-700">"{deleteTarget.title}"</span>? This cannot be undone.</p>
+              <p className="text-slate-500 text-sm mb-8">Are you sure you want to delete <span className="font-bold text-slate-700">"{deleteTarget.name}"</span>? This cannot be undone.</p>
             </div>
             <div className="flex gap-3">
               <button 

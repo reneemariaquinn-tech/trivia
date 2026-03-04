@@ -1,55 +1,24 @@
+/**
+ * @packageDocumentation
+ * Shared server actions used across multiple admin pages.
+ */
 'use server';
 
-import { z } from 'zod';
-import { ai } from '@/lib/genkit';
-import { db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, collection } from 'firebase/firestore';
-import { processTriviaAudio } from './game/triviaAudioGenerator';
-import { adminStorage } from '@/lib/firebase-admin';
-import { v4 as uuidv4 } from 'uuid';
-
-
-
-export async function generateQuestionAudioWithTTS(questionId: string, language: string) {
-  try {
-    // 1. Fetch question data
-    const docRef = doc(db, 'questions', questionId);
-    const docSnap = await getDoc(docRef);
-
-    if (!docSnap.exists()) {
-      throw new Error('Question document not found');
-    }
-    const questionData = docSnap.data();
-
-    if (!questionData.text || !Array.isArray(questionData.answers)) {
-      throw new Error('Invalid question data format.');
-    }
-
-    const triviaInput = {
-      question: questionData.text,
-      answers: questionData.answers.map((ans: { text: string }) => ans.text)
-    };
-
-    // 2. Generate Audio using the custom TTS generator
-    const result = await processTriviaAudio(triviaInput, language);
-
-    if (!result || !result.audioUrl) {
-      throw new Error('Failed to generate audio or get URL');
-    }
-
-    // 3. Update the question document
-    await updateDoc(docRef, {
-      [`audioUrls.${language}`]: result.audioUrl,
-      [`translations.${language}`]: result.translatedText,
-    });
-
-    return { success: true, audioUrl: result.audioUrl };
-  } catch (error) {
-    console.error('Error in generateQuestionAudioWithTTS:', error);
-    return { success: false, error: (error as Error).message };
-  }
-}
-
+/**
+ * Searches for images from Pexels or Wikimedia Commons and returns a normalised result set.
+ *
+ * **Pexels:** Returns up to 6 landscape photos. Requires `PEXELS_API_KEY` environment variable.
+ *
+ * **Wikimedia Commons:** Returns up to 6 images from the File namespace. Portrait images are
+ * capped at 1000px wide to avoid oversized downloads.
+ *
+ * Results from both providers are normalised to `{ url, photographer, source }` objects
+ * so the UI can treat them identically.
+ *
+ * @param query - Search term (e.g. `"Sydney Opera House"`)
+ * @param provider - Image source: `'pexels'` or `'wikimedia'`
+ * @returns Array of image result objects, or an empty array if none are found.
+ */
 export async function searchImages(query: string, provider: 'pexels' | 'wikimedia') {
   try {
     if (provider === 'pexels') {

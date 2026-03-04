@@ -1,11 +1,26 @@
+/**
+ * @packageDocumentation
+ * Google Cloud TTS audio generation pipeline for trivia questions.
+ *
+ * Translates question + answers (if needed), builds an SSML script with pauses and
+ * answer-letter prefixes, synthesises MP3 audio via Google Cloud TTS, and uploads
+ * the result to Firebase Storage with a persistent download token URL.
+ *
+ * **Google Cloud credentials** are loaded from environment variables:
+ * - `GOOGLE_SERVICE_ACCOUNT_KEY` (JSON string), or
+ * - `GOOGLE_CLIENT_EMAIL` + `GOOGLE_PRIVATE_KEY` + `GOOGLE_PROJECT_ID`, or
+ * - Application Default Credentials (ADC) via `GOOGLE_APPLICATION_CREDENTIALS`
+ *
+ * Firebase Admin (for Storage upload) is shared from `src/lib/firebase-admin.ts`.
+ */
 import { v2 } from '@google-cloud/translate';
 import textToSpeech from '@google-cloud/text-to-speech';
-import * as admin from 'firebase-admin';
+import { adminStorage } from '@/lib/firebase-admin';
 import { randomUUID } from 'crypto';
 
-// Helper to load credentials from Env Var (Best Practice) or File (Local Fallback)
+// Helper to load credentials for Google Cloud clients (Translate, TTS)
+// Note: Firebase Admin is initialised in src/lib/firebase-admin.ts
 const getCredentials = () => {
-  // 1. Check for stringified JSON in Environment Variable
   if (process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
     try {
       return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY);
@@ -13,18 +28,15 @@ const getCredentials = () => {
       console.error('Error parsing GOOGLE_SERVICE_ACCOUNT_KEY:', error);
     }
   }
-  
-  // 2. Check for individual fields (Common alternative)
+
   if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY && process.env.GOOGLE_PROJECT_ID) {
     return {
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'), // Handle escaped newlines
+      private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
       project_id: process.env.GOOGLE_PROJECT_ID,
     };
   }
 
-  // 3. Fallback: Let Google Libraries find it automatically via GOOGLE_APPLICATION_CREDENTIALS
-  // or return undefined so the library attempts Application Default Credentials (ADC)
   return undefined;
 };
 
@@ -35,38 +47,46 @@ const getClientConfig = () => (credentials ? { credentials } : {});
 const translate = new v2.Translate(getClientConfig());
 const ttsClient = new textToSpeech.TextToSpeechClient(getClientConfig());
 
-// Determine bucket name from Env Var or Credentials
-const projectId = credentials?.project_id;
-const storageBucket = 'resparke-hub.firebasestorage.app';
-
-// Initialize Firebase Admin if not already initialized
-if (!admin.apps.length) {
-  const adminConfig = credentials 
-    ? { credential: admin.credential.cert(credentials), storageBucket }
-    : { storageBucket }; // Falls back to GOOGLE_APPLICATION_CREDENTIALS path if set
-    
-  admin.initializeApp(adminConfig);
-}
-
-interface TriviaInput {
+/** Input for the TTS pipeline: the raw question text and its answer options. */
+export interface TriviaInput {
+  /** The question text, including any fill-in-the-blank underscores. */
   question: string;
+  /** Answer options in display order (A, B, C). */
   answers: string[];
 }
 
-interface ProcessedTriviaResponse {
+/** Output of the TTS pipeline. */
+export interface ProcessedTriviaResponse {
+  /** The (possibly translated) question and answers returned for storage. */
   translatedText: {
     question: string;
     answers: string[];
   };
+  /** Persistent Firebase Storage download URL for the generated MP3. */
   audioUrl: string;
 }
 
 /**
- * Translates trivia content, generates audio with specific timing, and uploads to Firebase.
- * 
- * @param trivia - Object containing question and answers
- * @param targetLang - Target language code (e.g., 'fr', 'es', 'en')
- * @returns Object containing translated text and audio URL
+ * Full TTS pipeline: translate → SSML → synthesise → upload → return URL.
+ *
+ * **SSML script structure:**
+ * 1. Question text (5+ underscores/hyphens replaced with "blank")
+ * 2. 2 000 ms pause
+ * 3. Question text repeated
+ * 4. 1 500 ms pause
+ * 5. Answers: `A: {ans}` / `B: {ans}` / `C: {ans}` with 1 000 ms pauses between
+ *
+ * **Voice selection:**
+ * - English → `en-AU-Standard-C` at 0.75× speaking rate
+ * - Other languages → first available Neural2 voice, with Standard voice as fallback
+ *
+ * Audio is stored at `trivia/question-tts/{timestamp}-{uuid}-{lang}.mp3` with a
+ * `firebaseStorageDownloadTokens` metadata entry to generate a persistent URL.
+ *
+ * @param trivia - Question text and answer options to synthesise.
+ * @param targetLang - BCP-47 base language code, e.g. `'en'`, `'fr'`, `'es'`.
+ * @returns Translated content and the Firebase Storage audio URL.
+ * @throws If TTS synthesis fails or the audio buffer is empty.
  */
 export async function processTriviaAudio(
   trivia: TriviaInput,
@@ -159,8 +179,7 @@ export async function processTriviaAudio(
     }
 
     // --- Step D: Firebase Upload ---
-    console.log(`Uploading audio to bucket: ${storageBucket}`);
-    const bucket = admin.storage().bucket(storageBucket);
+    const bucket = adminStorage.bucket();
     const fileName = `trivia/question-tts/${Date.now()}-${randomUUID()}-${targetLang}.mp3`;
     const file = bucket.file(fileName);
     const token = randomUUID();
@@ -174,9 +193,7 @@ export async function processTriviaAudio(
       },
     });
 
-    // Generate a persistent URL (mimicking Firebase Client SDK)
-    const bucketName = storageBucket.replace(/^gs:\/\//, '');
-    const persistentUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
+    const persistentUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
 
     return {
       translatedText: {

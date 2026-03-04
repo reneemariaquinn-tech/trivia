@@ -1,7 +1,22 @@
+/**
+ * @packageDocumentation
+ * Server actions for managing the full trivia content hierarchy.
+ *
+ * All functions run server-side via Next.js Server Actions and interact with
+ * the `trivia` Firestore database within the `resparke-hub` Firebase project.
+ *
+ * **Data model:**
+ * - **Topics** (categories) → `topics` collection
+ * - **Quizzes** → `quizzes` collection, linked to topics via `topicIds: string[]`
+ * - **Questions** → `questions` collection, linked to quizzes via `quizIds: string[]`
+ *
+ * Images sourced from Pexels or Wikimedia are downloaded, resized to max 1600×1000px,
+ * and stored in Firebase Storage under the `trivia/` prefix before being saved to Firestore.
+ */
 'use server';
 
 // app/admin/topics/actions.ts
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { 
   collection, 
   getDocs, 
@@ -21,8 +36,17 @@ import { processTriviaAudio } from '../../game/triviaAudioGenerator';
 import { adminStorage } from '@/lib/firebase-admin';
 import { v4 as uuidv4 } from 'uuid';
 
+// ─── TIER 1: TOPICS ──────────────────────────────────────────────────────────
+
 /**
- * TIER 1: TOPICS (Categories)
+ * Retrieves all topics (categories) with a live quiz count for each.
+ *
+ * Fetches all quizzes in a single pass and counts how many reference each topic
+ * via their `topicIds` array, avoiding N+1 queries.
+ *
+ * @group Topics
+ * @returns Array of topic objects including `id`, `name`, `imageUrl`, `quizCount`,
+ *   `createdAt`, and `updatedAt` (ISO strings).
  */
 export async function getCategories() {
   // 1. Get all topics
@@ -53,11 +77,29 @@ export async function getCategories() {
   });
 }
 
-// Fixed naming to match your CategoriesPage import
+/**
+ * Permanently deletes a topic/category from Firestore.
+ *
+ * @group Topics
+ * @param id - Firestore document ID of the topic to delete.
+ */
 export async function deleteCategory(id: string) {
   await deleteDoc(doc(db, 'topics', id));
 }
 
+/**
+ * Creates or updates a topic/category.
+ *
+ * If the provided image URL is an external HTTP source (i.e. from an AI image search),
+ * it is fetched, resized to a max of 1600×1000px via Sharp, and stored in Firebase Storage
+ * at `trivia/topic-covers/imported/`. A persistent download URL is then saved to Firestore.
+ *
+ * @group Topics
+ * @param id - Existing topic ID to update, or `null` to create a new topic.
+ * @param formData - Form fields:
+ *   - `name` / `title` — display name of the category
+ *   - `existingImageUrl` — current image URL (Firebase Storage or external)
+ */
 export async function upsertCategory(id: string | null, formData: FormData) {
   // 1. Extract values from FormData
   // We check for 'title' and 'name' to be safe, then map it to 'name'
@@ -116,8 +158,17 @@ export async function upsertCategory(id: string | null, formData: FormData) {
   }
 }
 
+// ─── TIER 2: QUIZZES ─────────────────────────────────────────────────────────
+
 /**
- * TIER 2: QUIZZES (Uses array-contains for topicIds)
+ * Retrieves all quizzes belonging to a topic, with a live question count for each.
+ *
+ * Fetches all questions in a single pass and counts how many reference each quiz
+ * via their `quizIds` array. Also returns the parent topic's name for the page header.
+ *
+ * @group Quizzes
+ * @param topicId - Firestore document ID of the parent topic.
+ * @returns Object containing `quizzes` (array), `topicTitle`, and `categoryName`.
  */
 export async function getQuizzes(topicId: string) {
   // 1. Get Quizzes for this topic
@@ -168,12 +219,33 @@ export async function getQuizzes(topicId: string) {
   };
 }
 
-export async function deleteQuiz(id: string, topicId?: string) {
+/**
+ * Permanently deletes a quiz from Firestore.
+ *
+ * @group Quizzes
+ * @param id - Firestore document ID of the quiz to delete.
+ */
+export async function deleteQuiz(id: string) {
   await deleteDoc(doc(db, 'quizzes', id));
 }
 
-// app/admin/topics/actions.ts
-
+/**
+ * Creates or updates a quiz.
+ *
+ * On create, the quiz is linked to `topicId` via the `topicIds` array.
+ * On update, `topicId` (if provided) is merged into the existing `topicIds` array via `arrayUnion`,
+ * preserving any existing topic relationships.
+ *
+ * External images (from AI search) are downloaded, resized, and stored at `trivia/quiz-covers/imported/`.
+ *
+ * @group Quizzes
+ * @param id - Existing quiz ID to update, or `null` to create a new quiz.
+ * @param topicId - Parent topic ID. Required when creating; optional when updating.
+ * @param formData - Form fields:
+ *   - `name` / `title` — quiz title
+ *   - `description` — optional description
+ *   - `existingImageUrl` — current cover image URL (Firebase Storage or external)
+ */
 export async function upsertQuiz(id: string | null, topicId: string | null, formData: FormData) {
   // 1. Extract values from FormData
   // We look for 'name' because that's likely what your form input is named
@@ -241,8 +313,17 @@ export async function upsertQuiz(id: string | null, topicId: string | null, form
   }
 }
 
+// ─── TIER 3: QUESTIONS ───────────────────────────────────────────────────────
+
 /**
- * TIER 3: QUESTIONS (Uses array-contains for quizIds)
+ * Retrieves all questions for a quiz, along with the parent quiz document.
+ *
+ * Firestore `Timestamp` values in `imageMeta` are safely serialised to ISO strings
+ * so they can be passed across the server/client boundary.
+ *
+ * @group Questions
+ * @param quizId - Firestore document ID of the quiz.
+ * @returns Object with `questions` (array) and `quiz` (the parent quiz document or `null`).
  */
 export async function getQuestions(quizId: string) {
   const q = query(collection(db, 'questions'), where('quizIds', 'array-contains', quizId));
@@ -297,10 +378,22 @@ export async function getQuestions(quizId: string) {
   };
 }
 
+/**
+ * Permanently deletes a single question from Firestore.
+ *
+ * @group Questions
+ * @param id - Firestore document ID of the question to delete.
+ */
 export async function deleteQuestion(id: string) {
   await deleteDoc(doc(db, 'questions', id));
 }
 
+/**
+ * Deletes multiple questions in a single Firestore batch operation.
+ *
+ * @group Questions
+ * @param ids - Array of Firestore document IDs to delete.
+ */
 export async function bulkDeleteQuestions(ids: string[]) {
   const batch = writeBatch(db);
   ids.forEach(id => {
@@ -309,6 +402,13 @@ export async function bulkDeleteQuestions(ids: string[]) {
   await batch.commit();
 }
 
+/**
+ * Sets the difficulty level for multiple questions in a single Firestore batch operation.
+ *
+ * @group Questions
+ * @param ids - Array of Firestore document IDs to update.
+ * @param difficulty - Target difficulty level: `'easy'`, `'medium'`, or `'hard'`.
+ */
 export async function bulkUpdateDifficulty(ids: string[], difficulty: string) {
   const batch = writeBatch(db);
   ids.forEach(id => {
@@ -317,6 +417,33 @@ export async function bulkUpdateDifficulty(ids: string[], difficulty: string) {
   await batch.commit();
 }
 
+/**
+ * Creates or updates a question, handling image and audio asset management.
+ *
+ * **Image handling:** If the image URL is an external source (Pexels / Wikimedia),
+ * it is fetched server-side, auto-rotated, resized to max 1600×1000px, and stored
+ * in Firebase Storage at `trivia/question-images/imported/`. Orientation (`landscape`
+ * or `portrait`) is detected from the image dimensions and saved to `imageMeta`.
+ *
+ * **Audio handling:** Existing `audioUrls` for other languages are preserved.
+ * A new audio file upload via `audioFile` form field overwrites the English (`en`) entry.
+ *
+ * @group Questions
+ * @param questionId - Existing question ID to update, or `null` to create a new question.
+ * @param quizId - Parent quiz ID. Used to set `quizIds` on new questions.
+ * @param formData - Form fields:
+ *   - `text` — question text
+ *   - `difficulty` — `'easy'`, `'medium'`, or `'hard'`
+ *   - `opt0`, `opt1`, `opt2` — answer option texts
+ *   - `correctIndex` — `'0'`, `'1'`, or `'2'` (index of the correct answer)
+ *   - `existingImageUrl` — current image URL (Firebase Storage or external)
+ *   - `orientation` — manual override: `'landscape'` or `'portrait'`
+ *   - `imagePhotographer` — attribution name (saved to `imageMeta`)
+ *   - `imageSource` — attribution source (e.g. `'Pexels'`)
+ *   - `audioFile` — optional new audio file (overwrites `audioUrls.en`)
+ *   - `existingAudioUrl` — current English audio URL to preserve
+ * @returns The saved question data including its Firestore `id`.
+ */
 export async function upsertQuestion(questionId: string | null, quizId: string, formData: FormData) {
   const text = formData.get('text') as string;
   const difficulty = formData.get('difficulty') as string;
@@ -460,6 +587,21 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
   };
 }
 
+/**
+ * Bulk-imports questions from a JSON string (parsed from CSV in the UI).
+ *
+ * Splits large imports into chunks of 450 to stay within Firestore's 500-operation
+ * batch limit. Each question is created with `imageStatus: 'pending'` so images
+ * can be assigned later via the AI image search bulk action.
+ *
+ * **Expected CSV column order:** `question, option1, option2, option3, correctIndex, difficulty`
+ * where `correctIndex` is 1-based (`1`, `2`, or `3`).
+ *
+ * @group Questions
+ * @param quizId - Firestore document ID of the quiz to import into.
+ * @param jsonData - JSON-stringified array of question objects.
+ * @returns `{ success: true, count: number }` with the total number of questions created.
+ */
 export async function bulkUploadQuestions(quizId: string, jsonData: string) {
   const questions = JSON.parse(jsonData);
   
@@ -505,8 +647,22 @@ export async function bulkUploadQuestions(quizId: string, jsonData: string) {
   return { success: true, count: totalCount };
 }
 
+// ─── IMAGES ──────────────────────────────────────────────────────────────────
+
 /**
- * PHASE 3: THE IMAGE SEARCHER (PEXELS)
+ * Automatically finds and assigns an image to a question using the Pexels API.
+ *
+ * Searches Pexels for the given query (landscape orientation), downloads the top result,
+ * resizes it to max 1600×1000px, and stores it in Firebase Storage at
+ * `trivia/question-images/automated/{questionId}.jpg`. The question document is updated
+ * with the new `imageUrl`, `imageStatus: 'found'`, and full `imageMeta` (photographer,
+ * dimensions, aspect ratio, orientation).
+ *
+ * @group Images
+ * @param questionId - Firestore document ID of the question to update.
+ * @param searchQuery - Search term used to find a relevant image (defaults to question text).
+ * @returns The updated image fields: `imageUrl`, `imageStatus`, `imageSource`, `imageMeta`.
+ * @throws Error if `PEXELS_API_KEY` is missing or no image is found for the query.
  */
 export async function autoAssignImage(questionId: string, searchQuery: string) {
   const API_KEY = process.env.PEXELS_API_KEY;
@@ -569,6 +725,17 @@ export async function autoAssignImage(questionId: string, searchQuery: string) {
   };
 }
 
+// ─── UTILITIES ───────────────────────────────────────────────────────────────
+
+/**
+ * One-time migration utility: backfills `orientation` and `aspectRatio` onto question
+ * documents that have `imageMeta.width` but are missing the orientation field.
+ *
+ * Safe to run multiple times — only updates documents that need it.
+ *
+ * @group Utilities
+ * @returns The number of documents updated.
+ */
 export async function migrateQuestionMetadata() {
   const snapshot = await getDocs(collection(db, 'questions'));
   const batch = writeBatch(db);
@@ -588,6 +755,25 @@ export async function migrateQuestionMetadata() {
   return count;
 }
 
+// ─── AUDIO ───────────────────────────────────────────────────────────────────
+
+/**
+ * Generates a TTS (Text-to-Speech) audio file for a question and saves it to Firestore.
+ *
+ * Fetches the question text and answers, passes them to {@link processTriviaAudio} which:
+ * - Optionally translates the content (skipped for `'en'`)
+ * - Builds an SSML script: question → 2s pause → question repeat → 1.5s pause → answers A/B/C
+ * - Synthesises audio using Google Cloud TTS (English: `en-AU-Standard-C` at 0.75× speed)
+ * - Uploads the MP3 to Firebase Storage at `trivia/question-tts/`
+ *
+ * The resulting URL is saved to `audioUrls.{language}` on the question document.
+ * A 30-second timeout prevents the action from hanging on slow API responses.
+ *
+ * @group Audio
+ * @param questionId - Firestore document ID of the question.
+ * @param language - BCP-47 language code, e.g. `'en'`, `'fr'`, `'es'`.
+ * @returns `{ success: true, audioUrl }` on success, or `{ success: false, error }` on failure.
+ */
 export async function generateQuestionAudioWithTTS(questionId: string, language: string) {
   try {
     const docRef = doc(db, 'questions', questionId);
