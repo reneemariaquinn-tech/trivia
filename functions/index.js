@@ -3,6 +3,7 @@
  */
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const { getFirestore } = require('firebase-admin/firestore');
 const archiver = require('archiver');
 const axios = require('axios');
 
@@ -10,9 +11,8 @@ if (!admin.apps.length) {
   admin.initializeApp();
 }
 
-// 1. Point to the 'trivia' database
-const db = admin.firestore();
-db.settings({ databaseId: 'trivia' });
+// 1. Point to the 'trivia' named database
+const db = getFirestore('trivia');
 
 // 2. Update these to the new 'resparke-hub' project links
 const FEEDBACK_ASSETS = {
