@@ -612,7 +612,7 @@ body {
 let selectedLevel = 'easy';
 let selectedQuestionCount = 15;
 let isAudioOn = true;
-let gameMode = 'casual';
+let gameMode = 'guided';
 let gameQuestions = [];
 let currentIdx = 0;
 let score = 0;
@@ -685,10 +685,10 @@ function selectMode(mode) {
         gameMode = 'auto';
         isAudioOn = true;
     } else if (mode === 'quiet') {
-        gameMode = 'casual';
+        gameMode = 'quiet';
         isAudioOn = false;
     } else {
-        gameMode = 'casual';
+        gameMode = 'guided';
         isAudioOn = true;
     }
 

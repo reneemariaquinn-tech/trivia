@@ -49,7 +49,7 @@ export default function GamePage() {
   const [view, setView] = useState<'CATEGORIES' | 'QUIZZES' | 'LEVELS' | 'GAME' | 'RESULT'>('CATEGORIES');
   const [isLoading, setIsLoading] = useState(true);
   const [isAudioOn, setIsAudioOn] = useState(true);
-  const [gameMode, setGameMode] = useState<'casual' | 'auto' | 'stealth'>('casual');
+  const [gameMode, setGameMode] = useState<'guided' | 'quiet' | 'auto' | 'stealth'>('guided');
   
   // Data
   const [categories, setCategories] = useState<Category[]>([]);
@@ -474,14 +474,14 @@ export default function GamePage() {
                   <span className="setting-label">Game Type</span>
                   <div className="mode-selector">
                     <button
-                      className={`mode-opt ${gameMode === 'casual' && isAudioOn ? 'active' : ''}`}
-                      onClick={() => { setGameMode('casual'); setIsAudioOn(true); }}
+                      className={`mode-opt ${gameMode === 'guided' ? 'active' : ''}`}
+                      onClick={() => { setGameMode('guided'); setIsAudioOn(true); }}
                     >
                       Guided
                     </button>
-                    <button 
-                      className={`mode-opt ${gameMode === 'casual' && !isAudioOn ? 'active' : ''}`}
-                      onClick={() => { setGameMode('casual'); setIsAudioOn(false); }}
+                    <button
+                      className={`mode-opt ${gameMode === 'quiet' ? 'active' : ''}`}
+                      onClick={() => { setGameMode('quiet'); setIsAudioOn(false); }}
                     >
                       Quiet
                     </button>
@@ -510,8 +510,8 @@ export default function GamePage() {
                 </div>
 
                 <div className="mode-desc">
-                  {gameMode === 'casual' && isAudioOn && "Questions and audio guide you. Tap to move forward."}
-                  {gameMode === 'casual' && !isAudioOn && "You read the questions. Tap to move forward."}
+                  {gameMode === 'guided' && "Questions and audio guide you. Tap to move forward."}
+                  {gameMode === 'quiet' && "You read the questions. Tap to move forward."}
                   {gameMode === 'auto' && "Runs automatically for relaxed viewing."}
                 </div>
 
