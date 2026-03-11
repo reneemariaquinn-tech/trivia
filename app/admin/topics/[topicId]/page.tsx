@@ -177,6 +177,7 @@ const filtered = quizzes.filter(q =>
               <th className="p-5 text-white font-semibold text-sm">Quiz Title</th>
               <th className="p-5 text-white font-semibold text-sm">Description</th>
               <th className="p-5 text-white font-semibold text-sm text-center">Questions</th>
+              <th className="p-5 text-white font-semibold text-sm text-center">Answers A/B/C</th>
               <th className="p-5 text-white font-semibold text-sm text-right pr-10 last:rounded-tr-2xl">Actions</th>
             </tr>
           </thead>
@@ -198,10 +199,17 @@ const filtered = quizzes.filter(q =>
                   </td>
                   <td className="p-5 text-sm text-slate-500 max-w-xs truncate">{quiz.description || "No description provided."}</td>
                   <td className="px-6 py-4">
-  <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#009999]/10 text-[#009999] text-xs font-bold">
-    {quiz.questionCount || 0}
-  </div>
-</td>
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#009999]/10 text-[#009999] text-xs font-bold">
+                      {quiz.questionCount || 0}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center justify-center gap-2 text-xs font-bold">
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700">A: {quiz.correctAnswerCounts?.A ?? 0}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">B: {quiz.correctAnswerCounts?.B ?? 0}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">C: {quiz.correctAnswerCounts?.C ?? 0}</span>
+                    </div>
+                  </td>
                   <td className="p-5 text-right pr-10 relative">
                     <button 
                       onClick={() => setActiveMenu(activeMenu === quiz.id ? null : quiz.id)}
@@ -238,7 +246,7 @@ const filtered = quizzes.filter(q =>
               ))
             ) : (
               <tr>
-                <td colSpan={5} className="p-20 text-center text-slate-400 italic">
+                <td colSpan={6} className="p-20 text-center text-slate-400 italic">
                   No quizzes found. Click "+ Add New Quiz" to get started.
                 </td>
               </tr>

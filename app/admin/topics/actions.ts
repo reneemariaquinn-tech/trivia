@@ -187,13 +187,27 @@ export async function getQuizzes(topicId: string) {
     const quizId = doc.id;
 
     // 3. Count questions where the 'quizIds' array contains this quiz's ID
-    const qCount = allQuestions.filter(q => {
+    const quizQuestions = allQuestions.filter(q => {
       const qData = q as any;
       // Defensive check: ensure quizIds exists and is an array
-      return qData.quizIds && 
-             Array.isArray(qData.quizIds) && 
+      return qData.quizIds &&
+             Array.isArray(qData.quizIds) &&
              qData.quizIds.includes(quizId);
-    }).length;
+    });
+
+    const qCount = quizQuestions.length;
+
+    // Count how many questions have the correct answer at each position (A=0, B=1, C=2)
+    const correctAnswerCounts = { A: 0, B: 0, C: 0 };
+    for (const q of quizQuestions) {
+      const answers = (q as any).answers;
+      if (Array.isArray(answers)) {
+        const idx = answers.findIndex((a: any) => a.isCorrect === true);
+        if (idx === 0) correctAnswerCounts.A++;
+        else if (idx === 1) correctAnswerCounts.B++;
+        else if (idx === 2) correctAnswerCounts.C++;
+      }
+    }
 
     return {
       id: quizId,
@@ -203,6 +217,7 @@ export async function getQuizzes(topicId: string) {
       // Check both possible image field names
       imageUrl: data.imageUrl || data.coverImageUrl || "",
       questionCount: qCount,
+      correctAnswerCounts,
       createdAt: data.createdAt?.toDate?.().toISOString() || null,
       updatedAt: data.updatedAt?.toDate?.().toISOString() || null,
     };
