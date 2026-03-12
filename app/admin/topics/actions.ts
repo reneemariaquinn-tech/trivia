@@ -29,6 +29,7 @@ import {
   query, 
   where,
   arrayUnion,
+  arrayRemove,
   serverTimestamp
 } from 'firebase/firestore';
 import sharp from 'sharp';
@@ -74,6 +75,30 @@ export async function getCategories() {
       createdAt: data.createdAt?.toDate?.().toISOString() || null,
       updatedAt: data.updatedAt?.toDate?.().toISOString() || null,
     };
+  });
+}
+
+/** Returns a minimal list of all topics (id + name) for use in move-quiz pickers. */
+export async function getTopicList(): Promise<{ id: string; name: string }[]> {
+  const snapshot = await getDocs(collection(db, 'topics'));
+  return snapshot.docs.map(d => ({
+    id: d.id,
+    name: (d.data().name || d.data().title || 'Untitled Topic') as string,
+  })).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Moves a quiz from one topic to another by swapping the topicId inside `topicIds`.
+ * If the quiz belongs to multiple topics, only the `fromTopicId` entry is replaced.
+ */
+export async function moveQuizToTopic(quizId: string, fromTopicId: string, toTopicId: string) {
+  const quizRef = doc(db, 'quizzes', quizId);
+  await updateDoc(quizRef, {
+    topicIds: arrayRemove(fromTopicId),
+  });
+  await updateDoc(quizRef, {
+    topicIds: arrayUnion(toTopicId),
+    updatedAt: new Date(),
   });
 }
 

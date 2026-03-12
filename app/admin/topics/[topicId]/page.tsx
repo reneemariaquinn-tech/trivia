@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, use as useReact } from 'react';
-import { getQuizzes, deleteQuiz, upsertQuiz } from '../actions';
+import { getQuizzes, deleteQuiz, upsertQuiz, getTopicList, moveQuizToTopic } from '../actions';
 import Link from 'next/link';
 import { searchImages } from '../../../actions';
 import { storage } from '@/lib/firebase';
@@ -25,6 +25,12 @@ export default function QuizzesPage({ params }: { params: Promise<{ topicId: str
   // Delete Modal States
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Move Modal States
+  const [moveTarget, setMoveTarget] = useState<any>(null);
+  const [topicList, setTopicList] = useState<{ id: string; name: string }[]>([]);
+  const [selectedTopicId, setSelectedTopicId] = useState('');
+  const [isMoving, setIsMoving] = useState(false);
 
   const [aiSearchModal, setAiSearchModal] = useState<{
     isOpen: boolean;
@@ -234,14 +240,26 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
                         >
                           Edit Settings
                         </button>
-                        <Link 
+                        <Link
                           href={`/admin/quizzes/${quiz.id}?topicId=${topicId}`}
                           className="block w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-[#5233a6]/10 hover:text-[#5233a6] transition-colors"
                         >
                           Manage Questions
                         </Link>
+                        <button
+                          onClick={async () => {
+                            setActiveMenu(null);
+                            const topics = await getTopicList();
+                            setTopicList(topics.filter(t => t.id !== topicId));
+                            setSelectedTopicId('');
+                            setMoveTarget(quiz);
+                          }}
+                          className="w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-[#5233a6]/10 hover:text-[#5233a6] transition-colors text-left"
+                        >
+                          Move to Topic
+                        </button>
                         <div className="h-px bg-slate-100 my-1" />
-                        <button 
+                        <button
                           onClick={() => { setDeleteTarget(quiz); setActiveMenu(null); }}
                           className="w-full px-4 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
                         >
@@ -334,6 +352,44 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
                   <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
                 </div>
              </form>
+          </div>
+        </>
+      )}
+
+      {/* Move to Topic Modal */}
+      {moveTarget && (
+        <>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[130]" onClick={() => setMoveTarget(null)} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl z-[140] p-8 animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold text-slate-800 mb-1">Move Quiz</h3>
+            <p className="text-sm text-slate-500 mb-6 italic">"{moveTarget.title}"</p>
+            <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Destination Topic</label>
+            <select
+              value={selectedTopicId}
+              onChange={(e) => setSelectedTopicId(e.target.value)}
+              className="w-full bg-slate-50 border-0 rounded-lg p-3 text-sm outline-none focus:ring-2 focus:ring-[#5233a6] mb-6 text-slate-800"
+            >
+              <option value="">Select a topic…</option>
+              {topicList.map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <div className="flex gap-3">
+              <button
+                disabled={!selectedTopicId || isMoving}
+                onClick={async () => {
+                  setIsMoving(true);
+                  await moveQuizToTopic(moveTarget.id, topicId, selectedTopicId);
+                  setIsMoving(false);
+                  setMoveTarget(null);
+                  loadQuizzes();
+                }}
+                className="flex-1 bg-[#5233a6] hover:bg-[#3e2680] text-white py-3 rounded-lg font-bold text-sm transition-all disabled:opacity-50"
+              >
+                {isMoving ? 'Moving…' : 'Move Quiz'}
+              </button>
+              <button onClick={() => setMoveTarget(null)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+            </div>
           </div>
         </>
       )}
