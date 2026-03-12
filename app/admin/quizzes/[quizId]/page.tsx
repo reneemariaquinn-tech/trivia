@@ -470,7 +470,17 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                   )}
                 </td>
                 <td className="p-5 font-medium max-w-xs truncate text-slate-900">{q.text}</td>
-                <td className="p-5 text-sm text-slate-500 max-w-xs truncate">{q.answers?.find((a: any) => a.isCorrect)?.text || '-'}</td>
+                <td className="p-5 text-sm text-slate-500 max-w-xs">
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const idx = q.answers?.findIndex((a: any) => a.isCorrect);
+                      const label = idx === 0 ? 'A' : idx === 1 ? 'B' : idx === 2 ? 'C' : null;
+                      const colours: Record<string, string> = { A: 'bg-indigo-100 text-indigo-700', B: 'bg-emerald-100 text-emerald-700', C: 'bg-amber-100 text-amber-700' };
+                      return label ? <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold ${colours[label]}`}>{label}</span> : null;
+                    })()}
+                    <span className="truncate">{q.answers?.find((a: any) => a.isCorrect)?.text || '-'}</span>
+                  </div>
+                </td>
                 <td className="p-5 text-xs font-bold uppercase text-slate-500">{q.difficulty || 'medium'}</td>
                 <td className="p-5 text-right pr-10 relative">
                   <button 
