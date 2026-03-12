@@ -119,9 +119,15 @@ export default function CategoriesPage() {
     setAiSearchModal(prev => ({ ...prev, isOpen: false }));
   };
 
-  const filtered = categories.filter(c => 
-    c.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
+
+  const filtered = categories
+    .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) =>
+      sortBy === 'count'
+        ? (b.quizCount ?? 0) - (a.quizCount ?? 0)
+        : a.name.localeCompare(b.name)
+    );
 
   if (isLoading) {
     return (
@@ -137,8 +143,12 @@ export default function CategoriesPage() {
       <div className="flex justify-between items-center mb-10">
         <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Categories</h1>
         <div className="flex gap-4">
-          <input 
-            type="text" 
+          <div className="flex rounded-lg overflow-hidden border border-slate-200 shadow-sm text-sm font-bold">
+            <button onClick={() => setSortBy('alpha')} className={`px-4 py-2 transition-colors ${sortBy === 'alpha' ? 'bg-[#5233a6] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>A–Z</button>
+            <button onClick={() => setSortBy('count')} className={`px-4 py-2 transition-colors ${sortBy === 'count' ? 'bg-[#5233a6] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Count</button>
+          </div>
+          <input
+            type="text"
             placeholder="Search..."
             className="bg-white border-0 shadow-sm rounded-lg px-6 py-2 text-sm w-72 focus:ring-2 focus:ring-[#5233a6] transition-all outline-none"
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -159,7 +169,6 @@ export default function CategoriesPage() {
             <tr className="bg-slate-800 text-white text-sm">
               <th className="p-5 text-white font-semibold text-sm first:rounded-tl-2xl">Image</th>
               <th className="p-5 text-white font-semibold text-sm">Category Name</th>
-              <th className="p-5 text-white font-semibold text-sm">Description</th>
               <th className="p-5 text-white font-semibold text-sm text-center">Quizzes</th>
               <th className="p-5 text-white font-semibold text-sm text-right pr-10 last:rounded-tr-2xl">Actions</th>
             </tr>
@@ -179,7 +188,6 @@ export default function CategoriesPage() {
                     {cat.name}
                   </Link>
                 </td>
-                <td className="p-5 text-sm text-slate-500 max-w-xs truncate">{cat.description}</td>
                 <td className="p-5 text-center">
                   <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold">
                     {cat.quizCount}

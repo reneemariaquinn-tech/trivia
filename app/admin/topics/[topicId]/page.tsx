@@ -132,9 +132,15 @@ export default function QuizzesPage({ params }: { params: Promise<{ topicId: str
     setAiSearchModal(prev => ({ ...prev, isOpen: false }));
   };
 
-const filtered = quizzes.filter(q => 
-    (q.title?.toLowerCase() || "").includes(searchTerm.toLowerCase())
-  );
+const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
+
+  const filtered = quizzes
+    .filter(q => (q.title?.toLowerCase() || "").includes(searchTerm.toLowerCase()))
+    .sort((a, b) =>
+      sortBy === 'count'
+        ? (b.questionCount ?? 0) - (a.questionCount ?? 0)
+        : (a.title || "").localeCompare(b.title || "")
+    );
 
   if (isLoading) {
     return (
@@ -153,8 +159,12 @@ const filtered = quizzes.filter(q =>
           <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">{categoryTitle} Quizzes</h1>
         </div>
         <div className="flex gap-4">
-          <input 
-            type="text" 
+          <div className="flex rounded-lg overflow-hidden border border-slate-200 shadow-sm text-sm font-bold">
+            <button onClick={() => setSortBy('alpha')} className={`px-4 py-2 transition-colors ${sortBy === 'alpha' ? 'bg-[#5233a6] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>A–Z</button>
+            <button onClick={() => setSortBy('count')} className={`px-4 py-2 transition-colors ${sortBy === 'count' ? 'bg-[#5233a6] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}>Count</button>
+          </div>
+          <input
+            type="text"
             placeholder="Search quizzes..."
             className="bg-white border-0 shadow-sm rounded-lg px-6 py-2 text-sm w-72 focus:ring-2 focus:ring-[#5233a6] transition-all outline-none"
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -175,7 +185,6 @@ const filtered = quizzes.filter(q =>
             <tr className="bg-slate-800 text-white text-sm">
               <th className="p-5 text-white font-semibold text-sm first:rounded-tl-2xl w-24">Cover</th>
               <th className="p-5 text-white font-semibold text-sm">Quiz Title</th>
-              <th className="p-5 text-white font-semibold text-sm">Description</th>
               <th className="p-5 text-white font-semibold text-sm text-center">Questions</th>
               <th className="p-5 text-white font-semibold text-sm text-center">Answers A/B/C</th>
               <th className="p-5 text-white font-semibold text-sm text-right pr-10 last:rounded-tr-2xl">Actions</th>
@@ -197,7 +206,6 @@ const filtered = quizzes.filter(q =>
                       {quiz.title}
                     </Link>
                   </td>
-                  <td className="p-5 text-sm text-slate-500 max-w-xs truncate">{quiz.description || "No description provided."}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#009999]/10 text-[#009999] text-xs font-bold">
                       {quiz.questionCount || 0}
@@ -246,7 +254,7 @@ const filtered = quizzes.filter(q =>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="p-20 text-center text-slate-400 italic">
+                <td colSpan={5} className="p-20 text-center text-slate-400 italic">
                   No quizzes found. Click "+ Add New Quiz" to get started.
                 </td>
               </tr>
