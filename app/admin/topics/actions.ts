@@ -833,3 +833,111 @@ export async function generateQuestionAudioWithTTS(questionId: string, language:
     return { success: false, error: error.message || "Unknown error" };
   }
 }
+
+// ─── REDISTRIBUTE ANSWERS ────────────────────────────────────────────────────
+
+/**
+ * Redistributes the correct answer position (A/B/C) evenly across all questions
+ * in a quiz, then regenerates English TTS audio for every question that changed.
+ *
+ * Strategy: minimise changes by keeping questions that already sit in an
+ * under-represented bucket, then reassign the overflow.
+ *
+ * @param quizId - Firestore document ID of the quiz.
+ * @returns Summary counts: updated questions + audio success/fail.
+ */
+export async function redistributeAnswers(quizId: string): Promise<{
+  success: boolean;
+  updated: number;
+  audioSuccess: number;
+  audioFailed: number;
+  error?: string;
+}> {
+  try {
+    const questionsQuery = query(
+      collection(db, 'questions'),
+      where('quizIds', 'array-contains', quizId)
+    );
+    const snapshot = await getDocs(questionsQuery);
+    const questions: any[] = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const N = questions.length;
+    if (N === 0) return { success: true, updated: 0, audioSuccess: 0, audioFailed: 0 };
+
+    // Target count per bucket (A=0, B=1, C=2), distribute remainder to A then B
+    const base = Math.floor(N / 3);
+    const rem = N % 3;
+    const targets = [base + (rem > 0 ? 1 : 0), base + (rem > 1 ? 1 : 0), base];
+
+    // Separate questions into current buckets
+    const buckets: any[][] = [[], [], []];
+    const invalid: any[] = []; // no valid correct answer found
+    for (const q of questions) {
+      const idx = Array.isArray(q.answers)
+        ? q.answers.findIndex((a: any) => a.isCorrect === true)
+        : -1;
+      if (idx === 0 || idx === 1 || idx === 2) buckets[idx].push(q);
+      else invalid.push(q);
+    }
+
+    // Pull excess questions out of over-full buckets
+    const toMove: Array<{ q: any; fromIdx: number }> = [];
+    for (let i = 0; i < 3; i++) {
+      if (buckets[i].length > targets[i]) {
+        const excess = buckets[i].splice(targets[i]); // keep only `targets[i]` in place
+        for (const q of excess) toMove.push({ q, fromIdx: i });
+      }
+    }
+    for (const q of invalid) toMove.push({ q, fromIdx: -1 });
+
+    // Fill deficits by pulling from toMove and swapping the answer position
+    const updatedQuestions: Array<{ id: string; answers: any[] }> = [];
+    let movePtr = 0;
+    for (let targetIdx = 0; targetIdx < 3; targetIdx++) {
+      while (buckets[targetIdx].length < targets[targetIdx] && movePtr < toMove.length) {
+        const { q, fromIdx } = toMove[movePtr++];
+        buckets[targetIdx].push(q);
+
+        const newAnswers: any[] = q.answers.map((a: any) => ({ ...a, isCorrect: false }));
+
+        // Find where the correct answer currently sits
+        const correctAt = fromIdx >= 0
+          ? fromIdx
+          : q.answers.findIndex((a: any) => a.isCorrect === true);
+
+        if (correctAt >= 0 && correctAt !== targetIdx) {
+          // Swap correct answer into targetIdx position
+          [newAnswers[correctAt], newAnswers[targetIdx]] = [newAnswers[targetIdx], newAnswers[correctAt]];
+        }
+
+        // Stamp the isCorrect flag cleanly
+        newAnswers.forEach((a: any, i: number) => { a.isCorrect = i === targetIdx; });
+
+        updatedQuestions.push({ id: q.id, answers: newAnswers });
+      }
+    }
+
+    // Persist answer changes in a batch
+    if (updatedQuestions.length > 0) {
+      const batch = writeBatch(db);
+      for (const { id, answers } of updatedQuestions) {
+        batch.update(doc(db, 'questions', id), { answers, updatedAt: new Date() });
+      }
+      await batch.commit();
+    }
+
+    // Regenerate English audio for each changed question
+    let audioSuccess = 0;
+    let audioFailed = 0;
+    for (const { id } of updatedQuestions) {
+      const result = await generateQuestionAudioWithTTS(id, 'en');
+      if (result.success) audioSuccess++;
+      else audioFailed++;
+    }
+
+    return { success: true, updated: updatedQuestions.length, audioSuccess, audioFailed };
+  } catch (error: any) {
+    console.error('redistributeAnswers error:', error);
+    return { success: false, updated: 0, audioSuccess: 0, audioFailed: 0, error: error.message };
+  }
+}

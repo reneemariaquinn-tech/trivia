@@ -9,7 +9,8 @@ import {
   bulkUpdateDifficulty,
   bulkUploadQuestions,
   autoAssignImage,
-  generateQuestionAudioWithTTS
+  generateQuestionAudioWithTTS,
+  redistributeAnswers
 } from '../../topics/actions';
 import ModalConfirm from '@/components/ModalConfirm';
 import { searchImages } from '../../../actions';
@@ -32,6 +33,23 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [csvContent, setCsvContent] = useState('');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+  const [redistributeState, setRedistributeState] = useState<
+    | { status: 'idle' }
+    | { status: 'running' }
+    | { status: 'done'; updated: number; audioSuccess: number; audioFailed: number }
+    | { status: 'error'; message: string }
+  >({ status: 'idle' });
+
+  const handleRedistribute = async () => {
+    setRedistributeState({ status: 'running' });
+    const result = await redistributeAnswers(quizId);
+    if (result.success) {
+      setRedistributeState({ status: 'done', updated: result.updated, audioSuccess: result.audioSuccess, audioFailed: result.audioFailed });
+      await loadData();
+    } else {
+      setRedistributeState({ status: 'error', message: result.error || 'Unknown error' });
+    }
+  };
   const [aiSearchModal, setAiSearchModal] = useState<{
     isOpen: boolean;
     query: string;
@@ -341,6 +359,15 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"
           >
             <span className="material-symbols-rounded">folder_zip</span> Export ZIP
+          </button>
+          <button
+            onClick={handleRedistribute}
+            disabled={redistributeState.status === 'running'}
+            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-60"
+            title="Redistribute correct answers evenly across A, B & C, then regenerate audio"
+          >
+            <span className="material-symbols-rounded">shuffle</span>
+            {redistributeState.status === 'running' ? 'Balancing…' : 'Balance A/B/C'}
           </button>
           <button onClick={() => setIsBulkUploadOpen(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2">
             <span className="material-symbols-rounded">content_paste_go</span> Bulk Upload
@@ -885,6 +912,56 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
           setIsSaving(false);
         }}
       />
+
+      {/* Redistribute result modal */}
+      {(redistributeState.status === 'done' || redistributeState.status === 'error') && (
+        <>
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[130]" onClick={() => setRedistributeState({ status: 'idle' })} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-2xl shadow-2xl z-[140] p-8 animate-in fade-in zoom-in-95 duration-200 text-center">
+            {redistributeState.status === 'done' ? (
+              <>
+                <div className="w-16 h-16 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">✓</div>
+                <h3 className="text-xl font-bold text-slate-800 mb-4">Balance Complete</h3>
+                <div className="grid grid-cols-3 gap-3 mb-6">
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <div className="text-2xl font-extrabold text-[#5233a6]">{redistributeState.updated}</div>
+                    <div className="text-xs text-slate-500 font-bold uppercase mt-1">Questions moved</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <div className="text-2xl font-extrabold text-emerald-600">{redistributeState.audioSuccess}</div>
+                    <div className="text-xs text-slate-500 font-bold uppercase mt-1">Audio regenerated</div>
+                  </div>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <div className="text-2xl font-extrabold text-red-500">{redistributeState.audioFailed}</div>
+                    <div className="text-xs text-slate-500 font-bold uppercase mt-1">Audio failed</div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
+                <h3 className="text-xl font-bold text-slate-800 mb-2">Something went wrong</h3>
+                <p className="text-sm text-slate-500 mb-6">{redistributeState.status === 'error' ? redistributeState.message : ''}</p>
+              </>
+            )}
+            <button
+              onClick={() => setRedistributeState({ status: 'idle' })}
+              className="w-full bg-[#5233a6] text-white py-3 rounded-lg font-bold text-sm hover:bg-[#3e2680] transition-all"
+            >
+              Close
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Running overlay */}
+      {redistributeState.status === 'running' && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[130] flex flex-col items-center justify-center gap-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+          <p className="text-white font-bold text-lg">Balancing answers…</p>
+          <p className="text-white/70 text-sm">Regenerating audio for changed questions. This may take a moment.</p>
+        </div>
+      )}
 
       {/* Global Menus Backdrop */}
       {activeMenu && <div className="fixed inset-0 z-[90]" onClick={() => setActiveMenu(null)} />}
