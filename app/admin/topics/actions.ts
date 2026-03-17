@@ -829,14 +829,26 @@ export async function generateQuestionAudioWithTTS(questionId: string, language:
     if (!questionData.text || !Array.isArray(questionData.answers)) {
       throw new Error('Invalid question data format.');
     }
-    
+
+    // Resolve gameType from the parent quiz (default to 'multi-answer' for backward compat)
+    let gameType: 'multi-answer' | 'reminiscing' = 'multi-answer';
+    const parentQuizId = Array.isArray(questionData.quizIds) ? questionData.quizIds[0] : null;
+    if (parentQuizId) {
+      const quizSnap = await getDoc(doc(db, 'quizzes', parentQuizId));
+      if (quizSnap.exists()) {
+        const qt = quizSnap.data().gameType;
+        if (qt === 'reminiscing') gameType = 'reminiscing';
+      }
+    }
+
     const triviaInput = {
       question: questionData.text,
-      answers: questionData.answers.map((ans: any) => ans.text)
+      answers: questionData.answers.map((ans: any) => ans.text),
+      gameType,
     };
 
     // Add a timeout to prevent infinite hanging
-    const timeoutPromise = new Promise((_, reject) => 
+    const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => reject(new Error("Audio generation timed out after 30s")), 30000)
     );
 

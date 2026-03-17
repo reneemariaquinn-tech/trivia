@@ -47,17 +47,28 @@ const getClientConfig = () => (credentials ? { credentials } : {});
 const translate = new v2.Translate(getClientConfig());
 const ttsClient = new textToSpeech.TextToSpeechClient(getClientConfig());
 
-/** Input for the TTS pipeline: the raw question text and its answer options. */
+/** Input for the TTS pipeline: the raw question text and its answer options or prompts. */
 export interface TriviaInput {
   /** The question text, including any fill-in-the-blank underscores. */
   question: string;
-  /** Answer options in display order (A, B, C). */
+  /**
+   * For 'multi-answer': answer options in display order (A, B, C).
+   * For 'reminiscing': discussion prompts (treated as unlabelled cues, no correct answer).
+   */
   answers: string[];
+  /**
+   * Controls SSML structure and speaking rate.
+   * Defaults to 'multi-answer' if omitted (backward-compatible).
+   */
+  gameType?: 'multi-answer' | 'reminiscing';
 }
 
 /** Output of the TTS pipeline. */
 export interface ProcessedTriviaResponse {
-  /** The (possibly translated) question and answers returned for storage. */
+  /**
+   * The (possibly translated) question and answers/prompts returned for storage.
+   * Field name is 'answers' in both modes to keep the Firestore schema flat.
+   */
   translatedText: {
     question: string;
     answers: string[];
@@ -112,24 +123,43 @@ export async function processTriviaAudio(
     }
 
     // --- Step B: SSML Construction ---
-    // Format options: "A: [answer 0], B: [answer 1], ..."
-    const optionsText = translatedAnswers
-      .map((ans, index) => `<say-as interpret-as="characters">${String.fromCharCode(65 + index)}</say-as>: ${ans}`)
-      .join('<break time="1000ms"/>');
+    const isReminiscing = trivia.gameType === 'reminiscing';
 
     // Replace 5+ underscores or hyphens with "blank" for TTS using SSML substitution
     const ssmlQuestion = translatedQuestion.replace(/([_\-]{5,})/g, '<sub alias="blank">$1</sub>');
 
-    // Build SSML with 1.5s pause and repetition
-    const ssml = `
-      <speak>
-        ${ssmlQuestion}
-        <break time="2000ms"/>
-        ${ssmlQuestion}
-        <break time="1500ms"/>
-        ${optionsText}
-      </speak>
-    `;
+    let ssml: string;
+
+    if (isReminiscing) {
+      // Reminiscing: read scene text once, then 3 prompts without A/B/C labels
+      const promptsText = translatedAnswers
+        .filter(p => p.trim())
+        .map(p => `${p}<break time="2000ms"/>`)
+        .join('');
+
+      ssml = `
+        <speak>
+          ${ssmlQuestion}
+          <break time="3000ms"/>
+          ${promptsText}
+        </speak>
+      `;
+    } else {
+      // Multi-answer: repeat question, then A/B/C labelled answers
+      const optionsText = translatedAnswers
+        .map((ans, index) => `<say-as interpret-as="characters">${String.fromCharCode(65 + index)}</say-as>: ${ans}`)
+        .join('<break time="1000ms"/>');
+
+      ssml = `
+        <speak>
+          ${ssmlQuestion}
+          <break time="2000ms"/>
+          ${ssmlQuestion}
+          <break time="1500ms"/>
+          ${optionsText}
+        </speak>
+      `;
+    }
 
     // --- Step C: TTS ---
     let languageCode = targetLang;
@@ -143,7 +173,7 @@ export async function processTriviaAudio(
       // Find corresponding Neural2 voice for other languages
       const [voicesResponse] = await ttsClient.listVoices({ languageCode: targetLang });
       const voices = voicesResponse.voices || [];
-      
+
       // Prefer Neural2 voices matching the target language
       const neural2Voice = voices.find(
         (v) => v.name?.includes('Neural2') && v.languageCodes?.some(code => code.startsWith(targetLang))
@@ -162,12 +192,15 @@ export async function processTriviaAudio(
       }
     }
 
+    // Reminiscing uses a gentler pace; multi-answer keeps the existing rate
+    const speakingRate = isReminiscing ? 0.85 : 0.75;
+
     const ttsRequest = {
       input: { ssml },
       voice: { languageCode, name: voiceName },
-      audioConfig: { 
+      audioConfig: {
         audioEncoding: 'MP3' as const,
-        speakingRate: 0.75, // Slow down the speaking rate (default is 1.0)
+        speakingRate,
       },
     };
 

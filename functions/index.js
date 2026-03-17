@@ -115,6 +115,8 @@ exports.exportGameZip = functions.https.onRequest(async (req, res) => {
     // 5. Generate Game Files
     const gameConfig = {
       title: quizData.title,
+      // gameType drives frontend rendering: 'multi-answer' = scored game, 'reminiscing' = activity
+      gameType: quizData.gameType || 'multi-answer',
       questions: processedQuestions
     };
 
@@ -187,26 +189,31 @@ tailwind.config = {
                     <div class="setting-row">
                         <span class="setting-label">Questions</span>
                         <div class="mode-selector" id="questions-selector">
+                            ${quizData.gameType === 'reminiscing' ? `
+                            <button class="mode-opt active" data-val="5"  onclick="selectQuestionCount(5)">5</button>
+                            <button class="mode-opt"        data-val="10" onclick="selectQuestionCount(10)">10</button>
+                            <button class="mode-opt"        data-val="15" onclick="selectQuestionCount(15)">15</button>
+                            ` : `
                             <button class="mode-opt active" data-val="15" onclick="selectQuestionCount(15)">15</button>
-                            <button class="mode-opt" data-val="30" onclick="selectQuestionCount(30)">30</button>
-                            <button class="mode-opt" data-val="50" onclick="selectQuestionCount(50)">50</button>
-                        </div>
-                    </div>
-                                        
-                    <div class="setting-row">
-                        <span class="setting-label">Game Type</span>
-                        <div class="mode-selector" id="mode-selector">
-                            <button class="mode-opt active" data-type="guided" onclick="selectMode('guided')">Guided</button>
-                            <button class="mode-opt" data-type="quiet" onclick="selectMode('quiet')">Quiet</button>
-                            <button class="mode-opt" data-type="auto" onclick="selectMode('auto')">Auto</button>
+                            <button class="mode-opt"        data-val="30" onclick="selectQuestionCount(30)">30</button>
+                            <button class="mode-opt"        data-val="50" onclick="selectQuestionCount(50)">50</button>
+                            `}
                         </div>
                     </div>
 
+                    <div class="setting-row">
+                        <span class="setting-label">${quizData.gameType === 'reminiscing' ? 'Mode' : 'Game Type'}</span>
+                        <div class="mode-selector" id="mode-selector">
+                            <button class="mode-opt active" data-type="guided" onclick="selectMode('guided')">Guided</button>
+                            <button class="mode-opt"        data-type="quiet"  onclick="selectMode('quiet')">Quiet</button>
+                            <button class="mode-opt"        data-type="auto"   onclick="selectMode('auto')">Auto</button>
+                        </div>
+                    </div>
 
                     <div class="mode-desc" id="mode-desc">Questions and audio guide you. Tap to move forward.</div>
 
                     <button class="level-btn primary" onclick="startGame()" style="margin-top: 20px; width: 100%">
-                        Start Game
+                        ${quizData.gameType === 'reminiscing' ? 'Start' : 'Start Game'}
                     </button>
                 </div>
             </div>
@@ -605,6 +612,28 @@ body {
 .score-big { font-size: 5rem; color: var(--teal); line-height: 1; }
 .score-total { font-size: 2rem; color: #666; }
 .result-msg { font-size: 1.5rem; color: #aaa; margin-bottom: 40px; }
+
+/* Reminiscing activity mode */
+.mode-reminiscing .badge { display: none; }
+.mode-reminiscing #score-sep,
+.mode-reminiscing #score-item { display: none !important; }
+.prompt-hidden { display: none !important; }
+.ans.prompt-selected { background: var(--teal); color: var(--black); }
+#btn-show-prompts {
+  margin-top: 8px;
+  background: rgba(102,224,224,0.12);
+  border: 2px solid var(--teal);
+  color: var(--teal);
+  border-radius: 12px;
+  padding: 14px 24px;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+  width: 100%;
+}
+#btn-show-prompts:hover { background: rgba(102,224,224,0.22); }
 `;
 
     // script.js
@@ -652,6 +681,8 @@ function pushEvent(event, eventData) {
 }
 
 // --- Setup & Scaling ---
+const isActivity = GAME_DATA.gameType === 'reminiscing';
+
 function handleResize() {
     const shell = document.getElementById('shell');
     const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
@@ -660,6 +691,12 @@ function handleResize() {
 window.addEventListener('resize', handleResize);
 handleResize();
 gtmPayload = getGtmPayload();
+
+// Apply activity-mode class and default question count
+if (isActivity) {
+    document.getElementById('shell').classList.add('mode-reminiscing');
+    selectedQuestionCount = 5;
+}
 
 // --- Lobby Logic ---
 function selectLevel(level) {
@@ -760,31 +797,54 @@ function loadQuestion() {
     const isLandscape = (q.imageMeta && q.imageMeta.orientation === 'landscape') || !q.imageMeta;
     content.className = isLandscape ? 'landscape' : 'portrait';
 
-    // Answers
+    // Answers / Prompts
     const answersDiv = document.getElementById('answers');
     answersDiv.innerHTML = '';
-    
-    // We don't shuffle answers here to keep it simple and matching audio if generated
-    q.answers.forEach((ans, idx) => {
-        const btn = document.createElement('button');
-        btn.className = 'ans';
-        btn.id = 'btn-ans-' + idx;
-        btn.disabled = (gameMode === 'auto'); // Disable interaction in auto mode
-        
-        const badge = document.createElement('div');
-        badge.className = 'badge';
-        badge.innerText = String.fromCharCode(65 + idx);
-        
-        const label = document.createElement('div');
-        label.className = 'ans-label';
-        label.innerText = ans.text;
-        
-        btn.appendChild(badge);
-        btn.appendChild(label);
-        
-        btn.onclick = () => handleAnswer(idx, ans.isCorrect);
-        answersDiv.appendChild(btn);
-    });
+
+    if (isActivity) {
+        // Show Prompts button — reveals prompts on demand
+        const showBtn = document.createElement('button');
+        showBtn.id = 'btn-show-prompts';
+        showBtn.innerText = 'Show Prompts';
+        showBtn.onclick = showPrompts;
+        answersDiv.appendChild(showBtn);
+
+        // Render prompts hidden; no badge, no locking
+        q.answers.forEach((ans, idx) => {
+            if (!ans.text) return;
+            const btn = document.createElement('button');
+            btn.className = 'ans prompt-hidden';
+            btn.id = 'btn-ans-' + idx;
+            const label = document.createElement('div');
+            label.className = 'ans-label';
+            label.innerText = ans.text;
+            btn.appendChild(label);
+            btn.onclick = () => handleAnswer(idx, false);
+            answersDiv.appendChild(btn);
+        });
+    } else {
+        // Standard trivia answers with A/B/C badges
+        q.answers.forEach((ans, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'ans';
+            btn.id = 'btn-ans-' + idx;
+            btn.disabled = (gameMode === 'auto');
+
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.innerText = String.fromCharCode(65 + idx);
+
+            const label = document.createElement('div');
+            label.className = 'ans-label';
+            label.innerText = ans.text;
+
+            btn.appendChild(badge);
+            btn.appendChild(label);
+
+            btn.onclick = () => handleAnswer(idx, ans.isCorrect);
+            answersDiv.appendChild(btn);
+        });
+    }
 
     // Audio
     if (audio) { audio.pause(); }
@@ -819,7 +879,20 @@ function replayAudio() {
     }
 }
 
+function showPrompts() {
+    document.querySelectorAll('.ans.prompt-hidden').forEach(b => b.classList.remove('prompt-hidden'));
+    const showBtn = document.getElementById('btn-show-prompts');
+    if (showBtn) showBtn.style.display = 'none';
+}
+
 function handleAnswer(idx, isCorrect) {
+    // Reminiscing: toggle teal highlight, no locking, no sfx
+    if (isActivity) {
+        const btn = document.getElementById('btn-ans-' + idx);
+        btn.classList.toggle('prompt-selected');
+        return;
+    }
+
     if (locked && gameMode !== 'stealth') return;
     locked = true;
 
@@ -922,8 +995,13 @@ function endGame() {
 
     document.getElementById('view-game').style.display = 'none';
     document.getElementById('view-result').style.display = 'flex';
-    
-    if (gameMode === 'auto') {
+
+    if (isActivity) {
+        document.getElementById('result-icon').innerText = '🌸';
+        document.getElementById('result-title').innerText = 'Activity Complete';
+        document.getElementById('result-msg').innerText = 'Thank you for sharing your memories today.';
+        document.getElementById('result-score-container').style.display = 'none';
+    } else if (gameMode === 'auto') {
         document.getElementById('result-icon').innerText = '✨';
         document.getElementById('result-title').innerText = 'Game Over';
         document.getElementById('result-msg').innerText = 'I hope you got everything right!';
