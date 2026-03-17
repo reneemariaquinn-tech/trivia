@@ -701,40 +701,26 @@ function selectMode(mode) {
 }
 
 function startGame() {
-    // Shuffle entire question pool, then slice to selected count
-    const pool = [...GAME_DATA.questions];
-    for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    gameQuestions = pool.slice(0, selectedQuestionCount);
-    
+    // Use all available questions regardless of level
+    gameQuestions = GAME_DATA.questions
+        .sort(() => Math.random() - 0.5)
+        .slice(0, selectedQuestionCount);
+
     if (gameQuestions.length === 0) {
         alert("No questions found.");
         return;
     }
-
     score = 0;
     currentIdx = 0;
-
     pushEvent('game_start', { game_mode: gameMode, game_questions: gameQuestions.length });
-
     document.getElementById('view-levels').style.display = 'none';
-    document.getElementById('view-game').style.display = 'grid'; // grid for layout
-    
-    // Update UI based on mode
+    document.getElementById('view-game').style.display = 'grid';
     if (gameMode === 'auto') {
         document.getElementById('btn-next').style.display = 'none';
-        isAudioOn = true; // Force audio on
+        isAudioOn = true;
     } else {
         document.getElementById('btn-next').style.display = 'flex';
     }
-
-    if (gameMode === 'stealth') {
-        document.getElementById('score-sep').style.display = 'none';
-        document.getElementById('score-item').style.display = 'none';
-    }
-
     loadQuestion();
 }
 
