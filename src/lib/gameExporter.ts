@@ -25,6 +25,8 @@ export function exportGameTemplate(
   items: Record<string, unknown>[],
 ): object {
   switch (gameType) {
+    case 'multi-answer':
+      return exportMultiAnswer(quizMeta, items);
     case 'reminiscing':
       return exportReminiscing(quizMeta, items);
     case 'who-am-i':
@@ -37,6 +39,23 @@ export function exportGameTemplate(
 }
 
 // ─── Per-type exporters ───────────────────────────────────────────────────────
+
+function exportMultiAnswer(
+  meta: Record<string, unknown>,
+  items: Record<string, unknown>[],
+): object {
+  return {
+    game_type: 'multi-answer',
+    title: meta.title,
+    items: items.map(item => ({
+      question: item.text ?? '',
+      answers: (item.answers as { text: string; isCorrect: boolean }[] | undefined) ?? [],
+      difficulty: item.difficulty ?? 'medium',
+      image_url: item.imageUrl ?? '',
+      audio_urls: item.audioUrls ?? {},
+    })),
+  };
+}
 
 function exportReminiscing(
   meta: Record<string, unknown>,
