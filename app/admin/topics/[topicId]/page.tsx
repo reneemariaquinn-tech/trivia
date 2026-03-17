@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { searchImages } from '../../../actions';
 import { storage } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { GAME_TYPES, type GameTypeId, getGameTypeMeta } from '@/types/gameTypes';
 
 export default function QuizzesPage({ params }: { params: Promise<{ topicId: string }> }) {
   const { topicId } = useReact(params);
@@ -21,6 +22,8 @@ export default function QuizzesPage({ params }: { params: Promise<{ topicId: str
   // Drawer & Edit States
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<any>(null);
+  const [drawerStep, setDrawerStep] = useState<'type-select' | 'details'>('type-select');
+  const [selectedGameType, setSelectedGameType] = useState<GameTypeId | null>(null);
 
   // Delete Modal States
   const [deleteTarget, setDeleteTarget] = useState<any>(null);
@@ -88,10 +91,25 @@ export default function QuizzesPage({ params }: { params: Promise<{ topicId: str
     });
   };
 
+  const openNewQuizDrawer = () => {
+    setEditingQuiz(null);
+    setSelectedGameType(null);
+    setDrawerStep('type-select');
+    setIsDrawerOpen(true);
+  };
+
+  const openEditQuizDrawer = (quiz: any) => {
+    setEditingQuiz(quiz);
+    setSelectedGameType(quiz.gameType ?? null);
+    setDrawerStep('details');
+    setIsDrawerOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
+    if (selectedGameType) formData.set('gameType', selectedGameType);
 
     const file = formData.get('imageFile') as File;
     const MAX_SIZE = 1024 * 1024; // 1MB
@@ -175,8 +193,8 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
             className="bg-white border-0 shadow-sm rounded-lg px-6 py-2 text-sm w-72 focus:ring-2 focus:ring-[#5233a6] transition-all outline-none"
             onChange={(e) => setSearchTerm(e.target.value)}
           />
-          <button 
-            onClick={() => { setEditingQuiz(null); setIsDrawerOpen(true); }}
+          <button
+            onClick={openNewQuizDrawer}
             className="bg-[#5233a6] hover:bg-[#3e2680] text-white px-6 py-2 rounded-lg text-sm font-bold shadow-md shadow-[#5233a6]/20 transition-all"
           >
             + Add Quiz
@@ -191,6 +209,7 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
             <tr className="bg-slate-800 text-white text-sm">
               <th className="p-5 text-white font-semibold text-sm first:rounded-tl-2xl w-24">Cover</th>
               <th className="p-5 text-white font-semibold text-sm">Quiz Title</th>
+              <th className="p-5 text-white font-semibold text-sm text-center">Game Type</th>
               <th className="p-5 text-white font-semibold text-sm text-center">Questions</th>
               <th className="p-5 text-white font-semibold text-sm text-center">Answers A/B/C</th>
               <th className="p-5 text-white font-semibold text-sm text-right pr-10 last:rounded-tr-2xl">Actions</th>
@@ -211,6 +230,21 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
                     <Link href={`/admin/quizzes/${quiz.id}?topicId=${topicId}`} className="hover:text-[#5233a6] transition-colors">
                       {quiz.title}
                     </Link>
+                  </td>
+                  <td className="px-6 py-4">
+                    {quiz.gameType ? (
+                      (() => {
+                        const meta = getGameTypeMeta(quiz.gameType as GameTypeId);
+                        return (
+                          <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${meta.badgeColor}`}>
+                            <span>{meta.icon}</span>
+                            <span>{meta.label}</span>
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <span className="text-xs text-slate-300 italic">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-[#009999]/10 text-[#009999] text-xs font-bold">
@@ -234,8 +268,8 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
 
                     {activeMenu === quiz.id && (
                       <div className="absolute right-10 top-14 w-44 bg-white rounded-lg shadow-2xl ring-1 ring-black/5 z-[100] py-2 animate-in fade-in zoom-in-95 duration-100 text-left">
-                        <button 
-                          onClick={() => { setEditingQuiz(quiz); setIsDrawerOpen(true); setActiveMenu(null); }}
+                        <button
+                          onClick={() => { openEditQuizDrawer(quiz); setActiveMenu(null); }}
                           className="w-full px-4 py-2 text-xs font-bold text-slate-600 hover:bg-[#5233a6]/10 hover:text-[#5233a6] transition-colors"
                         >
                           Edit Settings
@@ -285,12 +319,63 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
       {isDrawerOpen && (
         <>
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[110]" onClick={() => setIsDrawerOpen(false)} />
-          <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-md bg-white shadow-2xl p-8 animate-in slide-in-from-right duration-300">
-             <div className="flex items-center justify-between mb-8 border-b pb-4 text-slate-800">
-                <h2 className="text-xl font-bold">{editingQuiz ? 'Update Quiz' : 'Create New Quiz'}</h2>
-                <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl">✕</button>
-             </div>
-             <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-md bg-white shadow-2xl p-8 animate-in slide-in-from-right duration-300 overflow-y-auto">
+            <div className="flex items-center justify-between mb-8 border-b pb-4 text-slate-800">
+              <h2 className="text-xl font-bold">
+                {editingQuiz ? 'Update Quiz' : drawerStep === 'type-select' ? 'Choose Game Type' : 'Create New Quiz'}
+              </h2>
+              <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 text-2xl">✕</button>
+            </div>
+
+            {/* Step 1: Game Type Selector (new quizzes only) */}
+            {drawerStep === 'type-select' && (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-500 mb-6">What kind of game is this quiz?</p>
+                {GAME_TYPES.map(gt => {
+                  const enabled = gt.id === 'multi-answer' || gt.id === 'reminiscing';
+                  return (
+                    <button
+                      key={gt.id}
+                      type="button"
+                      disabled={!enabled}
+                      onClick={() => { setSelectedGameType(gt.id); setDrawerStep('details'); }}
+                      className={`w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all ${enabled ? gt.cardColor : 'border-slate-200 bg-slate-50 opacity-40 cursor-not-allowed'}`}
+                    >
+                      <span className="text-3xl leading-none mt-0.5">{gt.icon}</span>
+                      <div>
+                        <div className="font-bold text-slate-800 text-sm">{gt.label}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{gt.description}</div>
+                        {!enabled && <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400 mt-1 block">Coming soon</span>}
+                      </div>
+                    </button>
+                  );
+                })}
+                <div className="pt-4">
+                  <button type="button" onClick={() => setIsDrawerOpen(false)} className="w-full bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Quiz Details Form */}
+            {drawerStep === 'details' && (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Game type indicator */}
+                {selectedGameType && (
+                  <div className="flex items-center gap-2">
+                    {!editingQuiz && (
+                      <button type="button" onClick={() => setDrawerStep('type-select')} className="text-xs text-[#5233a6] font-bold hover:underline">← Back</button>
+                    )}
+                    {(() => {
+                      const meta = getGameTypeMeta(selectedGameType);
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold ${meta.badgeColor}`}>
+                          {meta.icon} {meta.label}
+                        </span>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 <input type="hidden" name="existingImageUrl" value={editingQuiz?.imageUrl || ''} readOnly />
                 <div>
                   <label className="block text-xs font-bold uppercase text-slate-400 mb-2">Quiz Name</label>
@@ -306,7 +391,7 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
                     <div className="relative w-full h-48 group rounded-lg overflow-hidden border border-slate-200 mb-3">
                       <img src={editingQuiz.imageUrl} className="w-full h-full object-cover" alt="Cover" />
                       <div className="absolute top-2 right-2 flex gap-2">
-                        <button 
+                        <button
                           type="button"
                           onClick={() => {
                             setAiSearchModal({ isOpen: true, query: editingQuiz?.title || '', results: [], provider: 'pexels', isSearching: false });
@@ -317,7 +402,7 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
                         >
                           <span>✨</span>
                         </button>
-                        <button 
+                        <button
                           type="button"
                           onClick={() => setEditingQuiz({ ...editingQuiz, imageUrl: '' })}
                           className="bg-red-500 text-white p-2 rounded-full shadow-md hover:bg-red-600 transition-all"
@@ -331,7 +416,7 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
                     <div className="space-y-3">
                       <input type="file" name="imageFile" accept="image/*" className="w-full text-xs text-slate-400 file:mr-4 file:py-2 file:px-6 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-[#5233a6]/10 file:text-[#5233a6] hover:file:bg-[#5233a6]/20 transition-all cursor-pointer" />
                       <div className="text-center text-xs text-slate-400 font-bold uppercase">OR</div>
-                      <button 
+                      <button
                         type="button"
                         onClick={() => {
                           setAiSearchModal({ isOpen: true, query: editingQuiz?.title || '', results: [], provider: 'pexels', isSearching: false });
@@ -351,7 +436,8 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
                   </button>
                   <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-slate-100 text-slate-500 py-3 rounded-lg font-bold text-sm hover:bg-slate-200 transition-all">Cancel</button>
                 </div>
-             </form>
+              </form>
+            )}
           </div>
         </>
       )}
@@ -467,7 +553,7 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
             {aiSearchModal.isSearching ? (
               <div className="py-10 text-center text-slate-400">Searching...</div>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-3">
                 {aiSearchModal.results.map((img, idx) => (
                   <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-lg overflow-hidden cursor-pointer hover:ring-4 ring-[#5233a6] transition-all">
                     <img src={img.url} className="w-full h-full object-cover" alt="Result" />

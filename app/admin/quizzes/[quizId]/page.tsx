@@ -74,6 +74,8 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     setIsLoading(false);
   };
 
+  const isReminiscing = quiz?.gameType === 'reminiscing';
+
   const filteredQuestions = questions.filter(q => {
     if (filterLevel !== 'all' && (q.difficulty || 'medium') !== filterLevel) return false;
     if (filterImage === 'has-image' && !q.imageUrl) return false;
@@ -206,7 +208,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     
     if (target === 'question') {
       if (!editingQuestion?.id) return alert("Please save the question first to enable AI search.");
-      const correctAnswer = editingQuestion.answers?.find((a: any) => a.isCorrect)?.text || "";
+      const correctAnswer = isReminiscing
+        ? ""
+        : (editingQuestion.answers?.find((a: any) => a.isCorrect)?.text || "");
       defaultQuery = `${correctAnswer} ${editingQuestion.text || ""}`.trim();
     } else {
       // Quiz search
@@ -358,17 +362,19 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             }}
             className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2"
           >
-            <span className="material-symbols-rounded">folder_zip</span> Export ZIP
+            <span className="material-symbols-rounded">folder_zip</span>
           </button>
-          <button
-            onClick={handleRedistribute}
-            disabled={redistributeState.status === 'running'}
-            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-60"
-            title="Redistribute correct answers evenly across A, B & C, then regenerate audio"
-          >
-            <span className="material-symbols-rounded">shuffle</span>
-            {redistributeState.status === 'running' ? 'Balancing…' : 'Balance A/B/C'}
-          </button>
+          {!isReminiscing && (
+            <button
+              onClick={handleRedistribute}
+              disabled={redistributeState.status === 'running'}
+              className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2 disabled:opacity-60"
+              title="Redistribute correct answers evenly across A, B & C, then regenerate audio"
+            >
+              <span className="material-symbols-rounded">balance</span>
+              {redistributeState.status === 'running' ? 'Balancing…' : ''}
+            </button>
+          )}
           <button onClick={() => setIsBulkUploadOpen(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-6 py-2 rounded-lg font-bold shadow-sm transition-all flex items-center gap-2">
             <span className="material-symbols-rounded">content_paste_go</span> Bulk Upload
           </button>
@@ -387,16 +393,18 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5233a6] outline-none w-48"
           />
-          <select 
-              value={filterLevel} 
+          {!isReminiscing && (
+            <select
+              value={filterLevel}
               onChange={(e) => setFilterLevel(e.target.value)}
               className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-[#5233a6] outline-none"
-          >
+            >
               <option value="all">All Levels</option>
               <option value="easy">Easy</option>
               <option value="medium">Medium</option>
               <option value="hard">Hard</option>
-          </select>
+            </select>
+          )}
           
           <select 
               value={filterImage} 
@@ -424,17 +432,19 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <span className="text-xs font-bold uppercase text-slate-500">
                 Bulk ({selectedIds.length}):
             </span>
-            <select 
-              onChange={(e) => handleBulkLevelChange(e.target.value)}
-              disabled={isSaving}
-              value=""
-              className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-[#5233a6] outline-none"
-            >
-              <option value="" disabled>Set Level</option>
-              <option value="easy">Easy</option>
-              <option value="medium">Medium</option>
-              <option value="hard">Hard</option>
-            </select>
+            {!isReminiscing && (
+              <select
+                onChange={(e) => handleBulkLevelChange(e.target.value)}
+                disabled={isSaving}
+                value=""
+                className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 focus:ring-2 focus:ring-[#5233a6] outline-none"
+              >
+                <option value="" disabled>Set Level</option>
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            )}
 
             <button 
               onClick={handleBulkAiSearch}
@@ -472,9 +482,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               </th>
               <th className="p-5 w-20">Image</th>
               <th className="p-5 w-16 text-center">Audio</th>
-              <th className="p-5">Question</th>
-              <th className="p-5">Correct Answer</th>
-              <th className="p-5">Level</th>
+              <th className="p-5">{isReminiscing ? 'Scene / Context' : 'Question'}</th>
+              <th className="p-5">{isReminiscing ? 'Discussion Prompts' : 'Correct Answer'}</th>
+              {!isReminiscing && <th className="p-5">Level</th>}
               <th className="p-5 text-right pr-10 last:rounded-tr-2xl">Actions</th>
             </tr>
           </thead>
@@ -498,17 +508,31 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                 </td>
                 <td className="p-5 font-medium max-w-xs truncate text-slate-900">{q.text}</td>
                 <td className="p-5 text-sm text-slate-500 max-w-xs">
-                  <div className="flex items-center gap-2">
-                    {(() => {
-                      const idx = q.answers?.findIndex((a: any) => a.isCorrect);
-                      const label = idx === 0 ? 'A' : idx === 1 ? 'B' : idx === 2 ? 'C' : null;
-                      const colours: Record<string, string> = { A: 'bg-indigo-100 text-indigo-700', B: 'bg-emerald-100 text-emerald-700', C: 'bg-amber-100 text-amber-700' };
-                      return label ? <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold ${colours[label]}`}>{label}</span> : null;
-                    })()}
-                    <span className="truncate">{q.answers?.find((a: any) => a.isCorrect)?.text || '-'}</span>
-                  </div>
+                  {isReminiscing ? (
+                    <div className="flex flex-col gap-1">
+                      {(q.answers as { text: string }[] | undefined)?.map((a, i) => (
+                        a.text ? (
+                          <span key={i} className="text-xs text-slate-600 truncate">
+                            <span className="font-bold text-slate-400 mr-1">{i + 1}.</span>{a.text}
+                          </span>
+                        ) : null
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const idx = q.answers?.findIndex((a: any) => a.isCorrect);
+                        const label = idx === 0 ? 'A' : idx === 1 ? 'B' : idx === 2 ? 'C' : null;
+                        const colours: Record<string, string> = { A: 'bg-indigo-100 text-indigo-700', B: 'bg-emerald-100 text-emerald-700', C: 'bg-amber-100 text-amber-700' };
+                        return label ? <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-bold ${colours[label]}`}>{label}</span> : null;
+                      })()}
+                      <span className="truncate">{q.answers?.find((a: any) => a.isCorrect)?.text || '-'}</span>
+                    </div>
+                  )}
                 </td>
-                <td className="p-5 text-xs font-bold uppercase text-slate-500">{q.difficulty || 'medium'}</td>
+                {!isReminiscing && (
+                  <td className="p-5 text-xs font-bold uppercase text-slate-500">{q.difficulty || 'medium'}</td>
+                )}
                 <td className="p-5 text-right pr-10 relative">
                   <button 
                     onClick={() => setActiveMenu(activeMenu === q.id ? null : q.id)}
@@ -543,7 +567,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
       {isDrawerOpen && (
         <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-xl bg-white p-10 shadow-2xl overflow-y-auto border-l border-slate-200">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">{editingQuestion ? 'Edit' : 'Add'} Question</h2>
+            <h2 className="text-2xl font-bold text-slate-900">{editingQuestion ? 'Edit' : 'Add'} {isReminiscing ? 'Scene' : 'Question'}</h2>
             <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -636,7 +660,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Question Text</label>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                {isReminiscing ? 'Scene / Context' : 'Question Text'}
+              </label>
               <textarea name="text" defaultValue={editingQuestion?.text} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none placeholder-slate-400" rows={3} />
             </div>
 
@@ -662,31 +688,53 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               {!editingQuestion?.id && <p className="text-[10px] text-slate-400 mt-1 text-right">Save question to generate audio</p>}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Difficulty</label>
-              <select name="difficulty" defaultValue={editingQuestion?.difficulty || 'medium'} className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none">
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
-              </select>
-            </div>
+            {!isReminiscing && (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Difficulty</label>
+                <select name="difficulty" defaultValue={editingQuestion?.difficulty || 'medium'} className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none">
+                  <option value="easy">Easy</option>
+                  <option value="medium">Medium</option>
+                  <option value="hard">Hard</option>
+                </select>
+              </div>
+            )}
 
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Answers & Correct Option</label>
-              <div className="space-y-3">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                    <input 
-                      type="radio" 
-                      name="correctIndex" 
-                      value={i} 
-                      defaultChecked={editingQuestion ? editingQuestion.answers?.[i]?.isCorrect : i === 0}
-                      className="w-5 h-5 text-[#5233a6] border-slate-300 bg-white focus:ring-[#5233a6]"
-                    />
-                    <input name={`opt${i}`} defaultValue={editingQuestion?.answers?.[i]?.text} placeholder={`Answer Option ${i + 1}`} className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400" required />
-                  </div>
-                ))}
-              </div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                {isReminiscing ? 'Discussion Prompts' : 'Answers & Correct Option'}
+              </label>
+              {isReminiscing ? (
+                <div className="space-y-3">
+                  {/* No correct answer for Reminiscing — store as answers array with isCorrect: false */}
+                  <input type="hidden" name="correctIndex" value="-1" />
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <span className="text-xs font-bold text-slate-400 w-4 shrink-0">{i + 1}</span>
+                      <input
+                        name={`opt${i}`}
+                        defaultValue={editingQuestion?.answers?.[i]?.text}
+                        placeholder={`Discussion prompt ${i + 1}`}
+                        className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                      <input
+                        type="radio"
+                        name="correctIndex"
+                        value={i}
+                        defaultChecked={editingQuestion ? editingQuestion.answers?.[i]?.isCorrect : i === 0}
+                        className="w-5 h-5 text-[#5233a6] border-slate-300 bg-white focus:ring-[#5233a6]"
+                      />
+                      <input name={`opt${i}`} defaultValue={editingQuestion?.answers?.[i]?.text} placeholder={`Answer Option ${i + 1}`} className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400" required />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button type="submit" disabled={isSaving} className="w-full bg-[#5233a6] text-white py-4 rounded-lg font-bold shadow-lg hover:bg-[#3e2680] transition-all">
@@ -871,7 +919,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             {aiSearchModal.isSearching ? (
               <div className="py-10 text-center text-slate-400">Searching...</div>
             ) : (
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-4 gap-3">
                 {aiSearchModal.results.map((img, idx) => (
                   <div key={idx} onClick={() => selectImage(img)} className="group relative aspect-square bg-slate-100 rounded-lg overflow-hidden cursor-pointer hover:ring-4 ring-[#5233a6] transition-all">
                     <img src={img.url} className="w-full h-full object-cover" alt="Result" />

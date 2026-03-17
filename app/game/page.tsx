@@ -242,14 +242,17 @@ export default function GamePage() {
   };
 
   const startGame = () => {
-    // Filter by level and shuffle
-    let filtered = questions.filter(q => (q.difficulty || 'medium') === selectedLevel);
-    
-    // Fallback: if no questions for this level, take any to avoid empty game
-    if (filtered.length === 0) filtered = questions;
+    // Filter by level; if not enough to fill the requested count, use the full pool
+    const byLevel = questions.filter(q => (q.difficulty || 'medium') === selectedLevel);
+    const pool = [...(byLevel.length >= selectedQuestionCount ? byLevel : questions)];
 
-    // Shuffle and take up to selected count
-    const shuffled = [...filtered].sort(() => Math.random() - 0.5).slice(0, selectedQuestionCount);
+    // Fisher-Yates shuffle
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    // Take exactly the requested count, or all available if fewer exist
+    const shuffled = pool.slice(0, selectedQuestionCount);
     
     if (shuffled.length === 0) {
       alert("No questions found for this quiz/level.");

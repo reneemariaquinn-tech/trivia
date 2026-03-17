@@ -26,7 +26,7 @@ export async function searchImages(query: string, provider: 'pexels' | 'wikimedi
         console.warn('Pexels API Key missing');
         return [];
       }
-      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=6`, {
+      const res = await fetch(`https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=12`, {
         headers: { Authorization: process.env.PEXELS_API_KEY }
       });
       const data = await res.json();
@@ -46,7 +46,7 @@ export async function searchImages(query: string, provider: 'pexels' | 'wikimedi
         format: 'json',
         generator: 'search',
         gsrnamespace: '6', // File namespace
-        gsrlimit: '6',
+        gsrlimit: '12',
         gsrsearch: query,
         prop: 'imageinfo',
         iiprop: 'url|extmetadata|user|size',

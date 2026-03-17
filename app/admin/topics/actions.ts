@@ -291,6 +291,7 @@ export async function upsertQuiz(id: string | null, topicId: string | null, form
   // We look for 'name' because that's likely what your form input is named
   const title = (formData.get('name') || formData.get('title')) as string;
   const description = formData.get('description') as string;
+  const gameType = formData.get('gameType') as string | null;
   let imageUrl = formData.get('existingImageUrl') as string;
 
   // 2. Handle External Image Import
@@ -328,12 +329,13 @@ export async function upsertQuiz(id: string | null, topicId: string | null, form
   }
 
   // 3. Prepare the standardized data object
-  const commonData = {
-    title: title || "Untitled Quiz", // This ensures it saves as 'title' in Firestore
+  const commonData: Record<string, unknown> = {
+    title: title || "Untitled Quiz",
     description: description || "",
     imageUrl: imageUrl || "",
     updatedAt: serverTimestamp(),
   };
+  if (gameType) commonData.gameType = gameType;
 
   // 4. Save to Firestore
   if (id && id !== 'null') {
