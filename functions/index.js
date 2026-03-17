@@ -701,16 +701,12 @@ function selectMode(mode) {
 }
 
 function startGame() {
-    // Filter by level; if not enough to fill the requested count, use the full pool
-    const byLevel = GAME_DATA.questions.filter(q => (q.difficulty || 'medium') === selectedLevel);
-    const pool = [...(byLevel.length >= selectedQuestionCount ? byLevel : GAME_DATA.questions)];
-
-    // Fisher-Yates shuffle
+    // Shuffle entire question pool, then slice to selected count
+    const pool = [...GAME_DATA.questions];
     for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [pool[i], pool[j]] = [pool[j], pool[i]];
     }
-    // Take exactly the requested count, or all available if fewer exist
     gameQuestions = pool.slice(0, selectedQuestionCount);
     
     if (gameQuestions.length === 0) {
