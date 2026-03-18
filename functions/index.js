@@ -262,6 +262,10 @@ tailwind.config = {
                         <span class="material-icons-round">replay</span>
                         <span>Replay</span>
                     </button>
+                    <button class="action-btn primary" id="btn-reveal" onclick="revealAnswer()" style="display:none;">
+                        <span class="material-icons-round">visibility</span>
+                        <span>Reveal</span>
+                    </button>
                     <button class="action-btn primary" id="btn-next" onclick="nextQuestion()">
                         <span>Next</span>
                         <span class="material-icons-round" style="font-size: 1.2em">arrow_forward</span>
@@ -619,6 +623,9 @@ body {
 .mode-reminiscing #score-item { display: none !important; }
 .prompt-hidden { display: none !important; }
 .ans.prompt-selected { background: var(--teal); color: var(--black); }
+.ans.clue-hidden .ans-label { color: rgba(255,255,255,0.3); font-style: italic; }
+.ans.clue-revealed { cursor: default; }
+.ans.clue-revealed .ans-label { color: var(--white); font-style: normal; }
 #btn-show-prompts {
   margin-top: 8px;
   background: rgba(102,224,224,0.12);
@@ -682,6 +689,7 @@ function pushEvent(event, eventData) {
 
 // --- Setup & Scaling ---
 const isActivity = GAME_DATA.gameType === 'reminiscing';
+const isWhoAmI   = GAME_DATA.gameType === 'who-am-i';
 
 function handleResize() {
     const shell = document.getElementById('shell');
@@ -752,7 +760,10 @@ function startGame() {
     pushEvent('game_start', { game_mode: gameMode, game_questions: gameQuestions.length });
     document.getElementById('view-levels').style.display = 'none';
     document.getElementById('view-game').style.display = 'grid';
-    if (gameMode === 'auto') {
+    if (isWhoAmI) {
+        document.getElementById('btn-next').style.display = 'none';
+        document.getElementById('btn-reveal').style.display = 'flex';
+    } else if (gameMode === 'auto') {
         document.getElementById('btn-next').style.display = 'none';
         isAudioOn = true;
     } else {
@@ -777,11 +788,18 @@ function loadQuestion() {
     const credit = document.getElementById('photo-credit');
     
     img.style.opacity = 0;
+    img.style.filter = isWhoAmI ? 'blur(18px) brightness(0.5)' : 'none';
+    img.style.transition = 'filter 0.6s ease, opacity 0.4s ease';
+
+    // Remove any previous answer overlay
+    const existingOverlay = document.getElementById('who-am-i-overlay');
+    if (existingOverlay) existingOverlay.remove();
+
     if (q.imageUrl) {
         img.src = q.imageUrl;
         img.onload = () => img.style.opacity = 1;
         noImg.style.display = 'none';
-        if (q.imageMeta && q.imageMeta.photographer) {
+        if (!isWhoAmI && q.imageMeta && q.imageMeta.photographer) {
             credit.innerText = 'Photo: ' + q.imageMeta.photographer;
             credit.style.display = 'block';
         } else {
@@ -797,11 +815,38 @@ function loadQuestion() {
     const isLandscape = (q.imageMeta && q.imageMeta.orientation === 'landscape') || !q.imageMeta;
     content.className = isLandscape ? 'landscape' : 'portrait';
 
-    // Answers / Prompts
+    // Reset reveal button for who-am-i
+    if (isWhoAmI) {
+        document.getElementById('btn-reveal').style.display = 'flex';
+        document.getElementById('btn-next').style.display = 'none';
+    }
+
+    // Answers / Prompts / Clues
     const answersDiv = document.getElementById('answers');
     answersDiv.innerHTML = '';
 
-    if (isActivity) {
+    if (isWhoAmI) {
+        // Render clue buttons — tap to reveal each clue individually
+        (q.clues || []).forEach((clueText, idx) => {
+            const btn = document.createElement('button');
+            btn.className = 'ans clue-hidden';
+            btn.id = 'btn-ans-' + idx;
+
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.innerText = idx + 1;
+
+            const label = document.createElement('div');
+            label.className = 'ans-label';
+            label.setAttribute('data-clue', clueText);
+            label.innerText = \`Clue \${idx + 1} — tap to reveal\`;
+
+            btn.appendChild(badge);
+            btn.appendChild(label);
+            btn.onclick = () => revealClue(idx);
+            answersDiv.appendChild(btn);
+        });
+    } else if (isActivity) {
         // Show Prompts button — reveals prompts on demand
         const showBtn = document.createElement('button');
         showBtn.id = 'btn-show-prompts';
@@ -885,6 +930,40 @@ function showPrompts() {
     if (showBtn) showBtn.style.display = 'none';
 }
 
+function revealClue(idx) {
+    const btn = document.getElementById('btn-ans-' + idx);
+    if (!btn || !btn.classList.contains('clue-hidden')) return;
+    btn.classList.remove('clue-hidden');
+    btn.classList.add('clue-revealed');
+    btn.disabled = true;
+    const label = btn.querySelector('.ans-label');
+    if (label) label.innerText = label.getAttribute('data-clue');
+    const badge = btn.querySelector('.badge');
+    if (badge) { badge.style.borderColor = 'var(--teal)'; badge.style.color = 'var(--teal)'; }
+}
+
+function revealAnswer() {
+    const q = gameQuestions[currentIdx];
+    // Unblur image
+    const img = document.getElementById('question-img');
+    if (img) img.style.filter = 'none';
+    // Reveal all remaining clues
+    (q.clues || []).forEach((_, idx) => revealClue(idx));
+    // Show answer overlay on image card
+    const imageCard = document.getElementById('image-card');
+    const overlay = document.createElement('div');
+    overlay.id = 'who-am-i-overlay';
+    overlay.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.88));padding:32px 20px 20px;z-index:2;text-align:center;';
+    overlay.innerHTML = \`<span style="color:var(--teal);font-size:1.5rem;font-weight:800;line-height:1.2;">\${q.answer || ''}</span>\`;
+    imageCard.appendChild(overlay);
+    // Play success sound
+    sfxCorrect.currentTime = 0;
+    sfxCorrect.play().catch(() => {});
+    // Swap Reveal → Next
+    document.getElementById('btn-reveal').style.display = 'none';
+    document.getElementById('btn-next').style.display = 'flex';
+}
+
 function handleAnswer(idx, isCorrect) {
     // Reminiscing: toggle teal highlight, no locking, no sfx
     if (isActivity) {
@@ -959,6 +1038,7 @@ function nextQuestion() {
 }
 
 function runAutoSequence() {
+    if (isWhoAmI) return; // Auto mode not applicable for who-am-i
     // 1.5s pause after audio
     setTimeout(() => {
         // Highlight
