@@ -810,8 +810,8 @@ function loadQuestion() {
     img.classList.remove('loaded', 'cleared');
 
     if (q.imageUrl) {
-        img.src = q.imageUrl;
         img.onload = () => img.classList.add('loaded');
+        img.src = q.imageUrl;
         noImg.style.display = 'none';
         if (!isWhoAmI && q.imageMeta && q.imageMeta.photographer) {
             credit.innerText = 'Photo: ' + q.imageMeta.photographer;
@@ -926,7 +926,7 @@ function loadQuestion() {
             let clueThresholds = [];
             audio.onloadedmetadata = () => {
                 const d = audio.duration;
-                clueThresholds = [d * 0.30, d * 0.55, d * 0.78];
+                clueThresholds = [d * 0.25, d * 0.50, d * 0.73];
             };
             audio.ontimeupdate = () => {
                 const t = audio.currentTime;
