@@ -167,7 +167,7 @@ tailwind.config = {
     <noscript><iframe src="https://www.googletagmanager.com/ns.html?id=GTM-K6F8XSP"
     height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
     <!-- End Google Tag Manager (noscript) -->
-    <div id="shell">
+    <div id="shell" class="${quizData.gameType === 'who-am-i' ? 'mode-who-am-i' : ''}">
         <!-- LEVELS VIEW -->
         <section id="view-levels" class="menu-view centered level-view-container">
             <div class="lobby-card overlay-card">
@@ -223,7 +223,7 @@ tailwind.config = {
         <section id="view-game" style="display:none;">
             <section id="content" class="landscape">
                 <div id="image-card">
-                    <img id="question-img" style="opacity:0">
+                    <img id="mystery-image" style="opacity:0">
                     <div id="no-image-text" class="no-game-img">Trivia Time</div>
                     <div id="photo-credit" class="photo-credit"></div>
                 </div>
@@ -467,15 +467,28 @@ body {
   position: relative;
   background: #0a0a0a;
 }
-#question-img {
+/* Base image styles — all modes */
+#mystery-image {
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: opacity .4s ease;
   position: absolute;
   top: 0; left: 0;
   z-index: 1;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+}
+#mystery-image.loaded { opacity: 1; }
+
+/* Who Am I: blur is the DEFAULT state, applied at first paint via CSS (no JS race) */
+.mode-who-am-i #mystery-image {
+  filter: blur(35px) brightness(0.6);
+  transition: filter 1.2s ease-in-out, opacity 0.5s ease;
+}
+.mode-who-am-i #mystery-image.loaded { opacity: 1; }
+.mode-who-am-i #mystery-image.cleared {
+  filter: blur(0px) brightness(1);
 }
 .no-game-img {
   width: 100%; height: 100%;
@@ -707,9 +720,6 @@ if (isActivity) {
     document.getElementById('shell').classList.add('mode-reminiscing');
     selectedQuestionCount = 5;
 }
-if (isWhoAmI) {
-    document.getElementById('shell').classList.add('mode-who-am-i');
-}
 
 // --- Lobby Logic ---
 function selectLevel(level) {
@@ -788,29 +798,20 @@ function loadQuestion() {
     document.getElementById('q-text').innerText = q.text;
     
     // Image
-    const img = document.getElementById('question-img');
+    const img = document.getElementById('mystery-image');
     const noImg = document.getElementById('no-image-text');
     const credit = document.getElementById('photo-credit');
-    
+
     // Remove any previous answer overlay
     const existingOverlay = document.getElementById('who-am-i-overlay');
     if (existingOverlay) existingOverlay.remove();
 
-    if (isWhoAmI) {
-        // Blur must be set before the image appears — no opacity fade needed since blur hides it
-        img.style.transition = 'filter 0.6s ease';
-        img.style.filter = 'blur(18px) brightness(0.5)';
-        img.style.opacity = 1;
-        img.onload = null;
-    } else {
-        img.style.opacity = 0;
-        img.style.filter = 'none';
-        img.style.transition = 'opacity 0.4s ease';
-    }
+    // Reset classes — CSS handles all filter/opacity states
+    img.classList.remove('loaded', 'cleared');
 
     if (q.imageUrl) {
         img.src = q.imageUrl;
-        if (!isWhoAmI) img.onload = () => img.style.opacity = 1;
+        img.onload = () => img.classList.add('loaded');
         noImg.style.display = 'none';
         if (!isWhoAmI && q.imageMeta && q.imageMeta.photographer) {
             credit.innerText = 'Photo: ' + q.imageMeta.photographer;
@@ -973,9 +974,9 @@ function revealClue(idx) {
 
 function revealAnswer() {
     const q = gameQuestions[currentIdx];
-    // Unblur image
-    const img = document.getElementById('question-img');
-    if (img) img.style.filter = 'none';
+    // Unblur image via CSS class transition
+    const img = document.getElementById('mystery-image');
+    if (img) img.classList.add('cleared');
     // Reveal all remaining clues
     (q.clues || []).forEach((_, idx) => revealClue(idx));
     // Show answer overlay on image card
