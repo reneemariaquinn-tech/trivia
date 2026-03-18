@@ -993,7 +993,7 @@ function revealAnswer() {
     const overlay = document.createElement('div');
     overlay.id = 'who-am-i-overlay';
     overlay.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.92));padding:40px 20px 24px;z-index:2;text-align:center;';
-    overlay.innerHTML = \`<span style="color:var(--teal);font-size:3rem;font-weight:800;line-height:1.2;text-shadow:0 2px 16px rgba(0,0,0,0.9),0 0 40px rgba(102,224,224,0.4);">\${q.answer || ''}</span>\`;
+    overlay.innerHTML = \`<span style="color:#ffffff;font-size:3rem;font-weight:800;line-height:1.2;text-shadow:0 2px 16px rgba(0,0,0,0.9),0 0 40px rgba(255,255,255,0.4);">\${q.answer || ''}</span>\`;
     imageCard.appendChild(overlay);
     // Play success sound
     sfxCorrect.currentTime = 0;
