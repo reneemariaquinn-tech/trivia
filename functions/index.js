@@ -223,7 +223,7 @@ tailwind.config = {
         <section id="view-game" style="display:none;">
             <section id="content" class="landscape">
                 <div id="image-card">
-                    <img id="mystery-image" ${quizData.gameType === 'who-am-i' ? 'style="filter:blur(40px) brightness(0.5);opacity:0;transition:filter 1.2s ease,opacity 0.5s ease;" onload="this.style.opacity=\'1\'"' : 'style="opacity:0;" onload="this.style.opacity=\'1\'"'}>
+                    <div id="image-stage" style="width:100%; height:100%; position:relative;"></div>
                     <div id="no-image-text" class="no-game-img">Trivia Time</div>
                     <div id="photo-credit" class="photo-credit"></div>
                 </div>
@@ -794,31 +794,40 @@ function loadQuestion() {
     locked = false;
     
     // Reset UI
-    document.getElementById('q-counter').innerText = \`\${currentIdx + 1} / \${gameQuestions.length}\`;
-    document.getElementById('score-val').innerText = \`Score: \${score}\`;
+    document.getElementById('q-counter').innerText = (currentIdx + 1) + ' / ' + gameQuestions.length;
+    document.getElementById('score-val').innerText = 'Score: ' + score;
     document.getElementById('q-text').innerText = q.text;
     
-    // Image
-    const img = document.getElementById('mystery-image');
-    const noImg = document.getElementById('no-image-text');
-    const credit = document.getElementById('photo-credit');
-
     // Remove any previous answer overlay
     const existingOverlay = document.getElementById('who-am-i-overlay');
     if (existingOverlay) existingOverlay.remove();
 
-    // Reset inline styles — re-apply blur for who-am-i, just hide for other modes
-    img.classList.remove('loaded', 'cleared');
-    img.style.opacity = '0';
-    if (isWhoAmI) {
-        img.style.filter = 'blur(40px) brightness(0.5)';
-    } else {
-        img.style.filter = '';
-    }
+    // Destroy & rebuild image — guarantees blur is pre-applied before any pixel renders
+    const stage = document.getElementById('image-stage');
+    if (stage) stage.innerHTML = '';
+
+    const noImg = document.getElementById('no-image-text');
+    const credit = document.getElementById('photo-credit');
 
     if (q.imageUrl) {
-        img.onload = () => { img.style.opacity = '1'; };
-        img.src = q.imageUrl;
+        const newImg = document.createElement('img');
+        newImg.id = 'mystery-image';
+        if (isWhoAmI) {
+            newImg.style.filter = 'blur(40px) brightness(0.5)';
+        }
+        newImg.style.opacity = '0';
+        newImg.style.transition = 'opacity 0.5s ease, filter 1.2s ease';
+        newImg.style.width = '100%';
+        newImg.style.height = '100%';
+        newImg.style.objectFit = 'cover';
+        newImg.style.position = 'absolute';
+        newImg.style.top = '0';
+        newImg.style.left = '0';
+        newImg.onload = function() {
+            newImg.style.opacity = '1';
+        };
+        newImg.src = q.imageUrl;
+        stage.appendChild(newImg);
         noImg.style.display = 'none';
         if (!isWhoAmI && q.imageMeta && q.imageMeta.photographer) {
             credit.innerText = 'Photo: ' + q.imageMeta.photographer;
