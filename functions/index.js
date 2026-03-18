@@ -223,7 +223,7 @@ tailwind.config = {
         <section id="view-game" style="display:none;">
             <section id="content" class="landscape">
                 <div id="image-card">
-                    <img id="mystery-image" style="opacity:0">
+                    <img id="mystery-image" style="opacity:.45">
                     <div id="no-image-text" class="no-game-img">Trivia Time</div>
                     <div id="photo-credit" class="photo-credit"></div>
                 </div>
