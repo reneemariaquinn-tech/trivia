@@ -621,6 +621,8 @@ body {
 .mode-reminiscing .badge { display: none; }
 .mode-reminiscing #score-sep,
 .mode-reminiscing #score-item { display: none !important; }
+.mode-who-am-i #score-sep,
+.mode-who-am-i #score-item { display: none !important; }
 .prompt-hidden { display: none !important; }
 .ans.prompt-selected { background: var(--teal); color: var(--black); }
 .ans.clue-hidden .ans-label { color: rgba(255,255,255,0.3); font-style: italic; }
@@ -705,6 +707,9 @@ if (isActivity) {
     document.getElementById('shell').classList.add('mode-reminiscing');
     selectedQuestionCount = 5;
 }
+if (isWhoAmI) {
+    document.getElementById('shell').classList.add('mode-who-am-i');
+}
 
 // --- Lobby Logic ---
 function selectLevel(level) {
@@ -787,17 +792,25 @@ function loadQuestion() {
     const noImg = document.getElementById('no-image-text');
     const credit = document.getElementById('photo-credit');
     
-    img.style.opacity = 0;
-    img.style.filter = isWhoAmI ? 'blur(18px) brightness(0.5)' : 'none';
-    img.style.transition = 'filter 0.6s ease, opacity 0.4s ease';
-
     // Remove any previous answer overlay
     const existingOverlay = document.getElementById('who-am-i-overlay');
     if (existingOverlay) existingOverlay.remove();
 
+    if (isWhoAmI) {
+        // Blur must be set before the image appears — no opacity fade needed since blur hides it
+        img.style.transition = 'filter 0.6s ease';
+        img.style.filter = 'blur(18px) brightness(0.5)';
+        img.style.opacity = 1;
+        img.onload = null;
+    } else {
+        img.style.opacity = 0;
+        img.style.filter = 'none';
+        img.style.transition = 'opacity 0.4s ease';
+    }
+
     if (q.imageUrl) {
         img.src = q.imageUrl;
-        img.onload = () => img.style.opacity = 1;
+        if (!isWhoAmI) img.onload = () => img.style.opacity = 1;
         noImg.style.display = 'none';
         if (!isWhoAmI && q.imageMeta && q.imageMeta.photographer) {
             credit.innerText = 'Photo: ' + q.imageMeta.photographer;
@@ -905,6 +918,22 @@ function loadQuestion() {
 
     if (q.audioUrl && isAudioOn) {
         audio = new Audio(q.audioUrl);
+        if (isWhoAmI) {
+            // Reveal clues progressively as audio plays.
+            // TTS structure: [intro] 3s [clue1] 2s [clue2] 2s [clue3]
+            // Approximate reveal at 30%, 55%, 78% of total duration.
+            let clueThresholds = [];
+            audio.onloadedmetadata = () => {
+                const d = audio.duration;
+                clueThresholds = [d * 0.30, d * 0.55, d * 0.78];
+            };
+            audio.ontimeupdate = () => {
+                const t = audio.currentTime;
+                clueThresholds.forEach((threshold, idx) => {
+                    if (threshold !== undefined && t >= threshold) revealClue(idx);
+                });
+            };
+        }
         audio.play().catch(e => console.log("Audio play failed", e));
         audio.onended = () => {
             if (gameMode === 'auto') runAutoSequence();
@@ -953,8 +982,8 @@ function revealAnswer() {
     const imageCard = document.getElementById('image-card');
     const overlay = document.createElement('div');
     overlay.id = 'who-am-i-overlay';
-    overlay.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.88));padding:32px 20px 20px;z-index:2;text-align:center;';
-    overlay.innerHTML = \`<span style="color:var(--teal);font-size:1.5rem;font-weight:800;line-height:1.2;">\${q.answer || ''}</span>\`;
+    overlay.style.cssText = 'position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,0.92));padding:40px 20px 24px;z-index:2;text-align:center;';
+    overlay.innerHTML = \`<span style="color:var(--teal);font-size:3rem;font-weight:800;line-height:1.2;text-shadow:0 2px 16px rgba(0,0,0,0.9),0 0 40px rgba(102,224,224,0.4);">\${q.answer || ''}</span>\`;
     imageCard.appendChild(overlay);
     // Play success sound
     sfxCorrect.currentTime = 0;
