@@ -21,18 +21,30 @@ type Quiz = {
   questionCount: number;
 };
 
-type Question = {
+type AnswerQuestion = {
   id: string;
   text: string;
   imageUrl: string;
   audioUrls?: { [key: string]: string };
-  imageMeta?: {
-    orientation?: 'landscape' | 'portrait';
-    photographer?: string;
-  };
+  imageMeta?: { orientation?: 'landscape' | 'portrait'; photographer?: string };
   difficulty: string;
+  gameType?: 'multi-answer' | 'reminiscing';
   answers: { text: string; isCorrect: boolean }[];
 };
+
+type WhoAmIQuestion = {
+  id: string;
+  text: string;
+  imageUrl: string;
+  audioUrls?: { [key: string]: string };
+  imageMeta?: { orientation?: 'landscape' | 'portrait'; photographer?: string };
+  difficulty: string;
+  gameType: 'who-am-i';
+  clues: [string, string, string];
+  answer: string;
+};
+
+type Question = AnswerQuestion | WhoAmIQuestion;
 
 declare global {
   interface Window {
@@ -79,6 +91,10 @@ export default function GamePage() {
   const [imageLoaded, setImageLoaded] = useState(false);
   const [autoHighlight, setAutoHighlight] = useState(false);
   const autoSequenceRef = useRef<any[]>([]);
+
+  // Who Am I state
+  const [revealedClues, setRevealedClues] = useState<Set<number>>(new Set());
+  const [isImageRevealed, setIsImageRevealed] = useState(false);
 
   // --- Derived State ---
   const currentQ = gameQuestions[currentIndex];
@@ -127,6 +143,8 @@ export default function GamePage() {
   useEffect(() => {
     setImageLoaded(false);
     setAutoHighlight(false);
+    setRevealedClues(new Set());
+    setIsImageRevealed(false);
     // Clear any pending auto sequence timeouts when changing questions
     autoSequenceRef.current.forEach(clearTimeout);
     autoSequenceRef.current = [];
@@ -268,10 +286,24 @@ export default function GamePage() {
   };
 
   const loadQuestion = (q: Question) => {
-    // Do not shuffle answers so they match the generated audio
-    const answers = q.answers.map((a, i) => ({ ...a, originalIdx: i }));
-    setShuffledAnswers(answers);
+    if ('clues' in q) {
+      // who-am-i: clues are displayed as progressive reveal buttons, not selectable answers
+      const answers = q.clues.map((text, i) => ({ text, isCorrect: false, originalIdx: i }));
+      setShuffledAnswers(answers);
+    } else {
+      // multi-answer / reminiscing: do not shuffle so order matches generated audio
+      const answers = q.answers.map((a, i) => ({ ...a, originalIdx: i }));
+      setShuffledAnswers(answers);
+    }
     setAnswerState({ selectedIdx: null, isCorrect: false, locked: false });
+    setRevealedClues(new Set());
+    setIsImageRevealed(false);
+  };
+
+  const handleRevealAnswer = () => {
+    setIsImageRevealed(true);
+    setRevealedClues(new Set([0, 1, 2]));
+    triggerCorrectFeedback(document.getElementById('btn-reveal') as HTMLElement, 'pulse');
   };
 
   const handleNext = () => {
@@ -329,6 +361,7 @@ export default function GamePage() {
   // --- Auto Mode Sequence ---
   const runAutoSequence = () => {
     if (gameMode !== 'auto') return;
+    if (currentQ?.gameType === 'who-am-i') return; // Auto mode not applicable for who-am-i
     
     // Clear any existing timeouts to prevent overlaps
     autoSequenceRef.current.forEach(clearTimeout);
@@ -547,19 +580,36 @@ export default function GamePage() {
                 {/* Active Question Image */}
                 {currentQ.imageUrl && (
                   <>
-                    <img 
-                      id="trivia-img" 
-                      key={currentQ.id} 
-                      src={currentQ.imageUrl} 
-                      alt="Trivia image" 
+                    <img
+                      id="trivia-img"
+                      key={currentQ.id}
+                      src={currentQ.imageUrl}
+                      alt="Trivia image"
                       onLoad={() => setImageLoaded(true)}
                       style={{
                         position: 'absolute',
                         top: 0, left: 0,
                         opacity: imageLoaded ? 1 : 0,
-                        zIndex: 1
+                        zIndex: 1,
+                        filter: currentQ.gameType === 'who-am-i' && !isImageRevealed
+                          ? 'blur(18px) brightness(0.55)'
+                          : 'none',
+                        transition: 'filter 0.6s ease, opacity 0.4s ease',
                       }}
                     />
+                    {/* Who Am I: answer reveal overlay */}
+                    {currentQ.gameType === 'who-am-i' && isImageRevealed && (
+                      <div style={{
+                        position: 'absolute', bottom: 0, left: 0, right: 0,
+                        background: 'linear-gradient(transparent, rgba(0,0,0,0.88))',
+                        padding: '32px 20px 20px',
+                        zIndex: 2, textAlign: 'center',
+                      }}>
+                        <span style={{ color: 'var(--teal)', fontSize: '1.5rem', fontWeight: 800, lineHeight: 1.2 }}>
+                          {currentQ.answer}
+                        </span>
+                      </div>
+                    )}
                     {imageLoaded && currentQ.imageMeta?.photographer && (
                       <div className="photo-credit">
                         Photo: {currentQ.imageMeta.photographer}
@@ -581,44 +631,69 @@ export default function GamePage() {
                 </div>
 
                 <div id="answers">
-                  {shuffledAnswers.map((ans, idx) => {
-                    const isSelected = answerState.selectedIdx === idx;
-                    const showResult = answerState.locked && gameMode !== 'stealth';
-                    
-                    let statusClass = '';
-                    let badgeContent: React.ReactNode = String.fromCharCode(65 + idx);
-                    let labelText: React.ReactNode = ans.text;
+                  {currentQ.gameType === 'who-am-i' ? (
+                    // Who Am I: clue reveal buttons
+                    shuffledAnswers.map((ans, idx) => {
+                      const isRevealed = revealedClues.has(idx);
+                      return (
+                        <button
+                          key={idx}
+                          id={`btn-answer-${idx}`}
+                          className="ans"
+                          onClick={() => setRevealedClues(prev => new Set([...prev, idx]))}
+                          disabled={isRevealed}
+                          style={{ opacity: isRevealed ? 1 : undefined }}
+                        >
+                          <div className="badge" style={isRevealed ? { background: 'rgba(102,224,224,0.15)', borderColor: 'var(--teal)', color: 'var(--teal)' } : {}}>
+                            {idx + 1}
+                          </div>
+                          <div className="ans-label" style={{ color: isRevealed ? 'var(--white)' : 'rgba(255,255,255,0.35)', fontStyle: isRevealed ? 'normal' : 'italic' }}>
+                            {isRevealed ? ans.text : `Clue ${idx + 1} — tap to reveal`}
+                          </div>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    // Multi-answer / Reminiscing: standard answer buttons
+                    shuffledAnswers.map((ans, idx) => {
+                      const isSelected = answerState.selectedIdx === idx;
+                      const showResult = answerState.locked && gameMode !== 'stealth';
 
-                    if (showResult) {
-                      if (ans.isCorrect) {
-                        statusClass = answerState.isCorrect ? 'correct' : 'correct-revealed';
-                        badgeContent = <span className="material-icons-round">check</span>;
-                      } else if (isSelected) {
-                        statusClass = 'wrong-selected';
-                        badgeContent = <span className="material-icons-round">close</span>;
-                        labelText = <><span style={{ color: 'white' }}>Nice Try!</span> {ans.text}</>;
-                      } else {
-                        statusClass = 'wrong';
+                      let statusClass = '';
+                      let badgeContent: React.ReactNode = String.fromCharCode(65 + idx);
+                      let labelText: React.ReactNode = ans.text;
+
+                      if (showResult) {
+                        if (ans.isCorrect) {
+                          statusClass = answerState.isCorrect ? 'correct' : 'correct-revealed';
+                          badgeContent = <span className="material-icons-round">check</span>;
+                        } else if (isSelected) {
+                          statusClass = 'wrong-selected';
+                          badgeContent = <span className="material-icons-round">close</span>;
+                          labelText = <><span style={{ color: 'white' }}>Nice Try!</span> {ans.text}</>;
+                        } else {
+                          statusClass = 'wrong';
+                        }
                       }
-                    }
-                    
-                    if (answerState.locked && gameMode === 'stealth' && isSelected) {
-                      statusClass = 'selected-stealth';
-                    }
 
-                    return (
-                      <button 
-                        key={idx} 
-                        id={`btn-answer-${idx}`}
-                        className={`ans ${statusClass} ${answerState.locked ? 'locked' : ''} ${autoHighlight ? 'auto-highlight' : ''}`}
-                        onClick={() => handleAnswer(idx, ans.isCorrect)}
-                        disabled={gameMode === 'stealth' || gameMode === 'auto'}
-                      >
-                        <div className="badge">{badgeContent}</div>
-                        <div className="ans-label">{labelText}</div>
-                      </button>
-                    );
-                  })}
+                      if (answerState.locked && gameMode === 'stealth' && isSelected) {
+                        statusClass = 'selected-stealth';
+                      }
+
+                      return (
+                        <button
+                          key={idx}
+                          id={`btn-answer-${idx}`}
+                          className={`ans ${statusClass} ${answerState.locked ? 'locked' : ''} ${autoHighlight ? 'auto-highlight' : ''}`}
+                          onClick={() => handleAnswer(idx, ans.isCorrect)}
+                          disabled={gameMode === 'stealth' || gameMode === 'auto'}
+                        >
+                          <div className="badge">{badgeContent}</div>
+                          <div className="ans-label">{labelText}</div>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </section>
@@ -668,7 +743,14 @@ export default function GamePage() {
                   </button>
                 )}
 
-                {gameMode !== 'auto' && (
+                {currentQ.gameType === 'who-am-i' && !isImageRevealed && (
+                  <button id="btn-reveal" className="action-btn primary" onClick={handleRevealAnswer}>
+                    <span className="material-icons-round">visibility</span>
+                    <span>Reveal</span>
+                  </button>
+                )}
+
+                {gameMode !== 'auto' && (currentQ.gameType !== 'who-am-i' || isImageRevealed) && (
                   <button className="action-btn primary" onClick={handleNext}>
                     <span>Next</span>
                     <span className="material-icons-round" style={{ fontSize: '1.2em' }}>arrow_forward</span>
@@ -697,13 +779,14 @@ export default function GamePage() {
                       <h3 className="group-title">Questions {groupIdx * 5 + 1} - {Math.min((groupIdx + 1) * 5, gameQuestions.length)}</h3>
                       {gameQuestions.slice(groupIdx * 5, (groupIdx + 1) * 5).map((q, i) => {
                         const globalNum = groupIdx * 5 + i + 1;
-                        const correct = q.answers.find(a => a.isCorrect);
+                        const correct = 'answers' in q ? q.answers.find(a => a.isCorrect) : null;
+                        const revealText = 'answer' in q ? q.answer : correct?.text;
                         return (
                           <div key={q.id} className="stealth-item">
                             <span className="s-num">{globalNum}.</span>
                             <div className="s-content">
                               <div className="s-q">{q.text}</div>
-                              <div className="s-a">{correct?.text}</div>
+                              <div className="s-a">{revealText}</div>
                             </div>
                           </div>
                         );
