@@ -489,6 +489,7 @@ export async function bulkUpdateDifficulty(ids: string[], difficulty: string) {
 export async function upsertQuestion(questionId: string | null, quizId: string, formData: FormData) {
   const text = formData.get('text') as string;
   const difficulty = formData.get('difficulty') as string;
+  const gameType = (formData.get('gameType') as string) || 'multi-answer';
   const searchQuery = (formData.get('searchQuery') as string) || text.substring(0, 50);
   const orientation = formData.get('orientation') as string;
   const photographer = formData.get('imagePhotographer') as string;
@@ -588,12 +589,22 @@ export async function upsertQuestion(questionId: string | null, quizId: string, 
     imageUrl: imageUrl || "",
     audioUrls: Object.keys(audioUrls).length > 0 ? audioUrls : null,
     updatedAt: new Date(),
-    answers: [
+  };
+
+  if (gameType === 'who-am-i') {
+    questionData.clues = [
+      (formData.get('clue0') as string) || '',
+      (formData.get('clue1') as string) || '',
+      (formData.get('clue2') as string) || '',
+    ];
+    questionData.answer = (formData.get('whoAmIAnswer') as string) || '';
+  } else {
+    questionData.answers = [
       { text: formData.get('opt0'), isCorrect: formData.get('correctIndex') === '0' },
       { text: formData.get('opt1'), isCorrect: formData.get('correctIndex') === '1' },
       { text: formData.get('opt2'), isCorrect: formData.get('correctIndex') === '2' },
-    ]
-  };
+    ];
+  }
 
   // Ensure metadata is accurate:
   // 1. If new manual upload, clear old Pexels meta and set source to manual

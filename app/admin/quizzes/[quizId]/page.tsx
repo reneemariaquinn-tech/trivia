@@ -75,6 +75,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
   };
 
   const isReminiscing = quiz?.gameType === 'reminiscing';
+  const isWhoAmI = quiz?.gameType === 'who-am-i';
 
   const filteredQuestions = questions.filter(q => {
     if (filterLevel !== 'all' && (q.difficulty || 'medium') !== filterLevel) return false;
@@ -208,7 +209,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
     
     if (target === 'question') {
       if (!editingQuestion?.id) return alert("Please save the question first to enable AI search.");
-      const correctAnswer = isReminiscing
+      const correctAnswer = (isReminiscing || isWhoAmI)
         ? ""
         : (editingQuestion.answers?.find((a: any) => a.isCorrect)?.text || "");
       defaultQuery = `${correctAnswer} ${editingQuestion.text || ""}`.trim();
@@ -364,7 +365,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
           >
             <span className="material-symbols-rounded">folder_zip</span>
           </button>
-          {!isReminiscing && (
+          {!isReminiscing && !isWhoAmI && (
             <button
               onClick={handleRedistribute}
               disabled={redistributeState.status === 'running'}
@@ -393,7 +394,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             onChange={(e) => setSearchTerm(e.target.value)}
             className="bg-slate-50 border-0 rounded-lg text-sm py-2 px-4 font-medium text-slate-700 placeholder-slate-400 focus:ring-2 focus:ring-[#5233a6] outline-none w-48"
           />
-          {!isReminiscing && (
+          {!isReminiscing && !isWhoAmI && (
             <select
               value={filterLevel}
               onChange={(e) => setFilterLevel(e.target.value)}
@@ -432,7 +433,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <span className="text-xs font-bold uppercase text-slate-500">
                 Bulk ({selectedIds.length}):
             </span>
-            {!isReminiscing && (
+            {!isReminiscing && !isWhoAmI && (
               <select
                 onChange={(e) => handleBulkLevelChange(e.target.value)}
                 disabled={isSaving}
@@ -482,9 +483,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               </th>
               <th className="p-5 w-20">Image</th>
               <th className="p-5 w-16 text-center">Audio</th>
-              <th className="p-5">{isReminiscing ? 'Scene / Context' : 'Question'}</th>
-              <th className="p-5">{isReminiscing ? 'Discussion Prompts' : 'Correct Answer'}</th>
-              {!isReminiscing && <th className="p-5">Level</th>}
+              <th className="p-5">{isReminiscing ? 'Scene / Context' : isWhoAmI ? 'Intro Question' : 'Question'}</th>
+              <th className="p-5">{isReminiscing ? 'Discussion Prompts' : isWhoAmI ? 'Final Identity' : 'Correct Answer'}</th>
+              {!isReminiscing && !isWhoAmI && <th className="p-5">Level</th>}
               <th className="p-5 text-right pr-10 last:rounded-tr-2xl">Actions</th>
             </tr>
           </thead>
@@ -508,7 +509,9 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                 </td>
                 <td className="p-5 font-medium max-w-xs truncate text-slate-900">{q.text}</td>
                 <td className="p-5 text-sm text-slate-500 max-w-xs">
-                  {isReminiscing ? (
+                  {isWhoAmI ? (
+                    <span className="truncate font-medium text-amber-700">{q.answer || '-'}</span>
+                  ) : isReminiscing ? (
                     <div className="flex flex-col gap-1">
                       {(q.answers as { text: string }[] | undefined)?.map((a, i) => (
                         a.text ? (
@@ -530,7 +533,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
                     </div>
                   )}
                 </td>
-                {!isReminiscing && (
+                {!isReminiscing && !isWhoAmI && (
                   <td className="p-5 text-xs font-bold uppercase text-slate-500">{q.difficulty || 'medium'}</td>
                 )}
                 <td className="p-5 text-right pr-10 relative">
@@ -567,7 +570,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
       {isDrawerOpen && (
         <div className="fixed inset-y-0 right-0 z-[120] w-full max-w-xl bg-white p-10 shadow-2xl overflow-y-auto border-l border-slate-200">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-slate-900">{editingQuestion ? 'Edit' : 'Add'} {isReminiscing ? 'Scene' : 'Question'}</h2>
+            <h2 className="text-2xl font-bold text-slate-900">{editingQuestion ? 'Edit' : 'Add'} {isReminiscing ? 'Scene' : isWhoAmI ? 'Clue Set' : 'Question'}</h2>
             <button onClick={() => setIsDrawerOpen(false)} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -604,6 +607,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
             <input type="hidden" name="orientation" value={manualOrientation} />
             <input type="hidden" name="imagePhotographer" value={editingQuestion?.imageMeta?.photographer || ''} />
             <input type="hidden" name="imageSource" value={editingQuestion?.imageMeta?.source || ''} />
+            <input type="hidden" name="gameType" value={quiz?.gameType || 'multi-answer'} />
 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Question Image</label>
@@ -661,7 +665,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
 
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                {isReminiscing ? 'Scene / Context' : 'Question Text'}
+                {isReminiscing ? 'Scene / Context' : isWhoAmI ? 'Intro Question' : 'Question Text'}
               </label>
               <textarea name="text" defaultValue={editingQuestion?.text} required className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none placeholder-slate-400" rows={3} />
             </div>
@@ -688,7 +692,7 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               {!editingQuestion?.id && <p className="text-[10px] text-slate-400 mt-1 text-right">Save question to generate audio</p>}
             </div>
 
-            {!isReminiscing && (
+            {!isReminiscing && !isWhoAmI && (
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Difficulty</label>
                 <select name="difficulty" defaultValue={editingQuestion?.difficulty || 'medium'} className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none">
@@ -699,43 +703,74 @@ export default function QuestionsPage({ params }: { params: Promise<{ quizId: st
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
-                {isReminiscing ? 'Discussion Prompts' : 'Answers & Correct Option'}
-              </label>
-              {isReminiscing ? (
-                <div className="space-y-3">
-                  {/* No correct answer for Reminiscing — store as answers array with isCorrect: false */}
-                  <input type="hidden" name="correctIndex" value="-1" />
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                      <span className="text-xs font-bold text-slate-400 w-4 shrink-0">{i + 1}</span>
-                      <input
-                        name={`opt${i}`}
-                        defaultValue={editingQuestion?.answers?.[i]?.text}
-                        placeholder={`Discussion prompt ${i + 1}`}
-                        className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400"
-                      />
-                    </div>
-                  ))}
+            {isWhoAmI ? (
+              <>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Clues</label>
+                  <div className="space-y-3">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex items-center gap-3 bg-amber-50 p-3 rounded-lg border border-amber-200">
+                        <span className="text-xs font-bold text-amber-500 w-12 shrink-0">Clue {i + 1}</span>
+                        <input
+                          name={`clue${i}`}
+                          defaultValue={editingQuestion?.clues?.[i]}
+                          placeholder={`Clue ${i + 1}`}
+                          required
+                          className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400"
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                      <input
-                        type="radio"
-                        name="correctIndex"
-                        value={i}
-                        defaultChecked={editingQuestion ? editingQuestion.answers?.[i]?.isCorrect : i === 0}
-                        className="w-5 h-5 text-[#5233a6] border-slate-300 bg-white focus:ring-[#5233a6]"
-                      />
-                      <input name={`opt${i}`} defaultValue={editingQuestion?.answers?.[i]?.text} placeholder={`Answer Option ${i + 1}`} className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400" required />
-                    </div>
-                  ))}
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Final Identity (Reveal)</label>
+                  <input
+                    name="whoAmIAnswer"
+                    defaultValue={editingQuestion?.answer}
+                    placeholder="e.g. Margaret Thatcher"
+                    required
+                    className="w-full p-3 bg-slate-50 text-slate-900 rounded-lg border-0 focus:ring-2 focus:ring-[#5233a6] outline-none placeholder-slate-400 font-medium"
+                  />
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase mb-2">
+                  {isReminiscing ? 'Discussion Prompts' : 'Answers & Correct Option'}
+                </label>
+                {isReminiscing ? (
+                  <div className="space-y-3">
+                    <input type="hidden" name="correctIndex" value="-1" />
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex items-center gap-3 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <span className="text-xs font-bold text-slate-400 w-4 shrink-0">{i + 1}</span>
+                        <input
+                          name={`opt${i}`}
+                          defaultValue={editingQuestion?.answers?.[i]?.text}
+                          placeholder={`Discussion prompt ${i + 1}`}
+                          className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="flex items-center gap-3 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                        <input
+                          type="radio"
+                          name="correctIndex"
+                          value={i}
+                          defaultChecked={editingQuestion ? editingQuestion.answers?.[i]?.isCorrect : i === 0}
+                          className="w-5 h-5 text-[#5233a6] border-slate-300 bg-white focus:ring-[#5233a6]"
+                        />
+                        <input name={`opt${i}`} defaultValue={editingQuestion?.answers?.[i]?.text} placeholder={`Answer Option ${i + 1}`} className="flex-1 bg-transparent border-0 text-sm text-slate-900 focus:ring-0 outline-none placeholder-slate-400" required />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <button type="submit" disabled={isSaving} className="w-full bg-[#5233a6] text-white py-4 rounded-lg font-bold shadow-lg hover:bg-[#3e2680] transition-all">
               {isSaving ? 'Saving...' : 'Save Question'}

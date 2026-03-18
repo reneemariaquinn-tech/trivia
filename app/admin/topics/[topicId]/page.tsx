@@ -332,7 +332,7 @@ const [sortBy, setSortBy] = useState<'alpha' | 'count'>('alpha');
               <div className="space-y-3">
                 <p className="text-sm text-slate-500 mb-6">What kind of game is this quiz?</p>
                 {GAME_TYPES.map(gt => {
-                  const enabled = gt.id === 'multi-answer' || gt.id === 'reminiscing';
+                  const enabled = gt.id === 'multi-answer' || gt.id === 'reminiscing' || gt.id === 'who-am-i';
                   return (
                     <button
                       key={gt.id}
