@@ -223,7 +223,7 @@ tailwind.config = {
         <section id="view-game" style="display:none;">
             <section id="content" class="landscape">
                 <div id="image-card">
-                    <img id="mystery-image" style="opacity:.45">
+                    <img id="mystery-image">
                     <div id="no-image-text" class="no-game-img">Trivia Time</div>
                     <div id="photo-credit" class="photo-credit"></div>
                 </div>
@@ -641,6 +641,7 @@ body {
 .ans.clue-hidden .ans-label { color: rgba(255,255,255,0.3); font-style: italic; }
 .ans.clue-revealed { cursor: default; }
 .ans.clue-revealed .ans-label { color: var(--white); font-style: normal; }
+.ans.clue-active { border: 4px solid #3b82f6; }
 #btn-show-prompts {
   margin-top: 8px;
   background: rgba(102,224,224,0.12);
@@ -963,8 +964,10 @@ function showPrompts() {
 function revealClue(idx) {
     const btn = document.getElementById('btn-ans-' + idx);
     if (!btn || !btn.classList.contains('clue-hidden')) return;
+    // Remove active highlight from all clue buttons
+    document.querySelectorAll('.ans.clue-revealed').forEach(b => b.classList.remove('clue-active'));
     btn.classList.remove('clue-hidden');
-    btn.classList.add('clue-revealed');
+    btn.classList.add('clue-revealed', 'clue-active');
     btn.disabled = true;
     const label = btn.querySelector('.ans-label');
     if (label) label.innerText = label.getAttribute('data-clue');
