@@ -223,7 +223,7 @@ tailwind.config = {
         <section id="view-game" style="display:none;">
             <section id="content" class="landscape">
                 <div id="image-card">
-                    <img id="mystery-image">
+                    <img id="mystery-image" ${quizData.gameType === 'who-am-i' ? 'style="filter:blur(40px) brightness(0.5);opacity:0;transition:filter 1.2s ease,opacity 0.5s ease;" onload="this.style.opacity=\'1\'"' : 'style="opacity:0;" onload="this.style.opacity=\'1\'"'}>
                     <div id="no-image-text" class="no-game-img">Trivia Time</div>
                     <div id="photo-credit" class="photo-credit"></div>
                 </div>
@@ -641,7 +641,7 @@ body {
 .ans.clue-hidden .ans-label { color: rgba(255,255,255,0.3); font-style: italic; }
 .ans.clue-revealed { cursor: default; }
 .ans.clue-revealed .ans-label { color: var(--white); font-style: normal; }
-.ans.clue-active { border: 4px solid #3b82f6; }
+.ans.clue-active { border: 4px solid #66e0e0; }
 #btn-show-prompts {
   margin-top: 8px;
   background: rgba(102,224,224,0.12);
@@ -807,11 +807,17 @@ function loadQuestion() {
     const existingOverlay = document.getElementById('who-am-i-overlay');
     if (existingOverlay) existingOverlay.remove();
 
-    // Reset classes — CSS handles all filter/opacity states
+    // Reset inline styles — re-apply blur for who-am-i, just hide for other modes
     img.classList.remove('loaded', 'cleared');
+    img.style.opacity = '0';
+    if (isWhoAmI) {
+        img.style.filter = 'blur(40px) brightness(0.5)';
+    } else {
+        img.style.filter = '';
+    }
 
     if (q.imageUrl) {
-        img.onload = () => img.classList.add('loaded');
+        img.onload = () => { img.style.opacity = '1'; };
         img.src = q.imageUrl;
         noImg.style.display = 'none';
         if (!isWhoAmI && q.imageMeta && q.imageMeta.photographer) {
@@ -977,9 +983,9 @@ function revealClue(idx) {
 
 function revealAnswer() {
     const q = gameQuestions[currentIdx];
-    // Unblur image via CSS class transition
+    // Unblur image — clear inline filter so transition animates to no blur
     const img = document.getElementById('mystery-image');
-    if (img) img.classList.add('cleared');
+    if (img) { img.style.filter = 'blur(0px) brightness(1)'; }
     // Reveal all remaining clues
     (q.clues || []).forEach((_, idx) => revealClue(idx));
     // Show answer overlay on image card
