@@ -60,7 +60,7 @@ export interface TriviaInput {
    * Controls SSML structure and speaking rate.
    * Defaults to 'multi-answer' if omitted (backward-compatible).
    */
-  gameType?: 'multi-answer' | 'reminiscing';
+  gameType?: 'multi-answer' | 'reminiscing' | 'who-am-i';
 }
 
 /** Output of the TTS pipeline. */
@@ -124,13 +124,28 @@ export async function processTriviaAudio(
 
     // --- Step B: SSML Construction ---
     const isReminiscing = trivia.gameType === 'reminiscing';
+    const isWhoAmI = trivia.gameType === 'who-am-i';
 
     // Replace 5+ underscores or hyphens with "blank" for TTS using SSML substitution
     const ssmlQuestion = translatedQuestion.replace(/([_\-]{5,})/g, '<sub alias="blank">$1</sub>');
 
     let ssml: string;
 
-    if (isReminiscing) {
+    if (isWhoAmI) {
+      // Who Am I: intro question once, then 3 clues without labels, 2s between each
+      const cluesText = translatedAnswers
+        .filter(c => c.trim())
+        .map(c => `${c}<break time="2000ms"/>`)
+        .join('');
+
+      ssml = `
+        <speak>
+          ${ssmlQuestion}
+          <break time="3000ms"/>
+          ${cluesText}
+        </speak>
+      `;
+    } else if (isReminiscing) {
       // Reminiscing: read scene text once, then 3 prompts without A/B/C labels
       const promptsText = translatedAnswers
         .filter(p => p.trim())
@@ -192,8 +207,8 @@ export async function processTriviaAudio(
       }
     }
 
-    // Reminiscing uses a gentler pace; multi-answer keeps the existing rate
-    const speakingRate = isReminiscing ? 0.85 : 0.75;
+    // Reminiscing and Who Am I use a gentler pace; multi-answer keeps the existing rate
+    const speakingRate = (isReminiscing || isWhoAmI) ? 0.85 : 0.75;
 
     const ttsRequest = {
       input: { ssml },

@@ -826,24 +826,36 @@ export async function generateQuestionAudioWithTTS(questionId: string, language:
     }
     
     const questionData = docSnap.data();
-    if (!questionData.text || !Array.isArray(questionData.answers)) {
-      throw new Error('Invalid question data format.');
-    }
 
     // Resolve gameType from the parent quiz (default to 'multi-answer' for backward compat)
-    let gameType: 'multi-answer' | 'reminiscing' = 'multi-answer';
+    let gameType: 'multi-answer' | 'reminiscing' | 'who-am-i' = 'multi-answer';
     const parentQuizId = Array.isArray(questionData.quizIds) ? questionData.quizIds[0] : null;
     if (parentQuizId) {
       const quizSnap = await getDoc(doc(db, 'quizzes', parentQuizId));
       if (quizSnap.exists()) {
         const qt = quizSnap.data().gameType;
         if (qt === 'reminiscing') gameType = 'reminiscing';
+        else if (qt === 'who-am-i') gameType = 'who-am-i';
       }
+    }
+
+    // Build audio input — who-am-i uses clues[], others use answers[].text
+    let audioAnswers: string[];
+    if (gameType === 'who-am-i') {
+      if (!questionData.text || !Array.isArray(questionData.clues) || questionData.clues.length !== 3) {
+        throw new Error('Invalid who-am-i data: requires text and exactly 3 clues.');
+      }
+      audioAnswers = questionData.clues as string[];
+    } else {
+      if (!questionData.text || !Array.isArray(questionData.answers)) {
+        throw new Error('Invalid question data format.');
+      }
+      audioAnswers = questionData.answers.map((ans: any) => ans.text);
     }
 
     const triviaInput = {
       question: questionData.text,
-      answers: questionData.answers.map((ans: any) => ans.text),
+      answers: audioAnswers,
       gameType,
     };
 
